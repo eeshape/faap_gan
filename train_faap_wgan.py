@@ -35,7 +35,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--detr_checkpoint", type=str, default=str(default_detr_checkpoint()), help="path to DETR pretrained checkpoint")
     parser.add_argument("--output_dir", type=str, default="faap_outputs")
     parser.add_argument("--device", type=str, default="cuda")
-    parser.add_argument("--epochs", type=int, default=30)
+    parser.add_argument("--epochs", type=int, default=6)
     parser.add_argument("--batch_size", type=int, default=8)
     parser.add_argument("--num_workers", type=int, default=8)
     parser.add_argument("--lr_g", type=float, default=1e-4)
@@ -46,6 +46,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--epsilon_warmup_epochs", type=int, default=5, help="epochs to linearly warm epsilon")
     parser.add_argument("--alpha", type=float, default=0.2, help="entropy weight for fairness term")
     parser.add_argument("--beta", type=float, default=0.7, help="detection-preserving loss weight")
+    parser.add_argument(
+        "--lambda_w", type=float, default=0.05, help="weight for Wasserstein alignment (female→male scores)"
+    )
     parser.add_argument("--obj_conf_thresh", type=float, default=0.5, help="objectness threshold for logging recall proxy")
     parser.add_argument("--max_norm", type=float, default=0.1, help="gradient clipping for G")
     parser.add_argument("--log_every", type=int, default=10)
@@ -94,6 +97,47 @@ def _unwrap_ddp(module: nn.Module) -> nn.Module:
 
 def _set_generator_epsilon(generator: nn.Module, epsilon: float) -> None:
     _unwrap_ddp(generator).epsilon = epsilon
+
+
+def _resize_sorted(scores: torch.Tensor, target_len: int) -> torch.Tensor:
+    if target_len <= 0:
+        return scores.new_zeros(0, device=scores.device)
+    if scores.numel() == 0:
+        return scores.new_zeros(target_len, device=scores.device)
+    if scores.numel() == target_len:
+        return scores
+    idx = torch.linspace(0, scores.numel() - 1, target_len, device=scores.device)
+    idx_low = idx.floor().long()
+    idx_high = idx.ceil().long()
+    weight = idx - idx_low
+    return scores[idx_low] * (1 - weight) + scores[idx_high] * weight
+
+
+def _matched_detection_scores(detr: FrozenDETR, outputs: dict, targets: Sequence[dict]) -> torch.Tensor:
+    if len(targets) == 0:
+        return outputs["pred_logits"].new_zeros(0, device=outputs["pred_logits"].device)
+    indices = detr.criterion.matcher(outputs, targets)
+    probs = outputs["pred_logits"].softmax(dim=-1)
+    matched_scores = []
+    for b, (src_idx, tgt_idx) in enumerate(indices):
+        if len(src_idx) == 0:
+            continue
+        tgt_labels = targets[b]["labels"][tgt_idx]
+        matched_scores.append(probs[b, src_idx, tgt_labels])
+    if matched_scores:
+        return torch.cat(matched_scores, dim=0)
+    return outputs["pred_logits"].new_zeros(0, device=outputs["pred_logits"].device)
+
+
+def _wasserstein_1d(female_scores: torch.Tensor, male_scores: torch.Tensor) -> torch.Tensor:
+    if female_scores.numel() == 0 or male_scores.numel() == 0:
+        return female_scores.new_tensor(0.0, device=female_scores.device)
+    sorted_f = female_scores.sort().values
+    sorted_m = male_scores.detach().sort().values
+    k = max(sorted_f.numel(), sorted_m.numel())
+    sorted_f = _resize_sorted(sorted_f, k)
+    sorted_m = _resize_sorted(sorted_m, k)
+    return (sorted_f - sorted_m).abs().mean()
 
 
 def main():
@@ -194,6 +238,7 @@ def main():
             delta_l2 = torch.tensor(0.0, device=device)
             obj_mean = torch.tensor(0.0, device=device)
             obj_frac = torch.tensor(0.0, device=device)
+            wasserstein_loss = torch.tensor(0.0, device=device)
 
             # -- update discriminator --
             for _ in range(args.k_d):
@@ -230,7 +275,15 @@ def main():
                 ent_f = _entropy_loss(logits_f)
                 fairness_loss = -(ce_f + args.alpha * ent_f)
                 det_loss, _ = detr.detection_loss(outputs_f, female_targets)
-                total_g = fairness_loss + args.beta * det_loss
+                female_scores = _matched_detection_scores(detr, outputs_f, female_targets)
+                if male_batch is not None:
+                    with torch.no_grad():
+                        outputs_m = detr.forward(male_batch)
+                    male_scores = _matched_detection_scores(detr, outputs_m, male_targets)
+                else:
+                    male_scores = torch.tensor([], device=device)
+                wasserstein_loss = _wasserstein_1d(female_scores, male_scores)
+                total_g = fairness_loss + args.beta * det_loss + args.lambda_w * wasserstein_loss
                 with torch.no_grad():
                     delta = female_perturbed.tensors - female_batch.tensors
                     delta_linf = delta.abs().amax(dim=(1, 2, 3)).mean()
@@ -253,6 +306,7 @@ def main():
                 g_fair=fairness_loss.item(),
                 g_det=det_loss.item(),
                 g_total=total_g.item(),
+                g_w=wasserstein_loss.item(),
                 eps=current_eps,
                 delta_linf=delta_linf.item(),
                 delta_l2=delta_l2.item(),
@@ -270,6 +324,7 @@ def main():
                 "g_fair": metrics_logger.meters["g_fair"].global_avg,
                 "g_det": metrics_logger.meters["g_det"].global_avg,
                 "g_total": metrics_logger.meters["g_total"].global_avg,
+                "g_w": metrics_logger.meters["g_w"].global_avg,
                 "epsilon": current_eps,
                 "delta_linf": metrics_logger.meters["delta_linf"].global_avg,
                 "delta_l2": metrics_logger.meters["delta_l2"].global_avg,
