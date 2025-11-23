@@ -1,0 +1,43 @@
+{
+  "baseline": {
+    "male": {
+      "AP": 0.5140207596418026,
+      "AR": 0.831503543960187
+    },
+    "female": {
+      "AP": 0.40559093067361957,
+      "AR": 0.83095703125
+    }
+  },
+  "perturbed": {
+    "male": {
+      "AP": 0.5140207596418026,
+      "AR": 0.831503543960187
+    },
+    "female": {
+      "AP": 0.40559093067361957,
+      "AR": 0.83095703125
+    }
+  },
+  "gaps": {
+    "AP": {
+      "baseline": 0.10842982896818304,
+      "perturbed": 0.10842982896818304
+    },
+    "AR": {
+      "baseline": 0.0005465127101870193,
+      "perturbed": 0.0005465127101870193
+    }
+  },
+  "hyperparams": {
+    "epsilon": 0.05,
+    "generator_checkpoint": null,
+    "detr_checkpoint": "/home/dohyeong/Desktop/detr/detr-r50-e632da11.pth",
+    "split": "val",
+    "batch_size": 4
+  },
+  "notes": {
+    "perturbation_applied_to_male": false,
+    "perturbation_applied_to_female": false
+  }
+}

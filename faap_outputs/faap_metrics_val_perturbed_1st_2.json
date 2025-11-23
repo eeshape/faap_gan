@@ -1,0 +1,43 @@
+{
+  "baseline": {
+    "male": {
+      "AP": 0.5094958350741854,
+      "AR": 0.8259689337958076
+    },
+    "female": {
+      "AP": 0.4043308544868377,
+      "AR": 0.826171875
+    }
+  },
+  "perturbed": {
+    "male": {
+      "AP": 0.5076142292882581,
+      "AR": 0.8269491781028503
+    },
+    "female": {
+      "AP": 0.4026866088030004,
+      "AR": 0.8275390625
+    }
+  },
+  "gaps": {
+    "AP": {
+      "baseline": 0.10516498058734769,
+      "perturbed": 0.10492762048525767
+    },
+    "AR": {
+      "baseline": -0.00020294120419239725,
+      "perturbed": -0.000589884397149687
+    }
+  },
+  "hyperparams": {
+    "epsilon": 0.05,
+    "generator_checkpoint": "/home/dohyeong/Desktop/faap_gan/faap_outputs/checkpoints/epoch_0013.pth",
+    "detr_checkpoint": "/home/dohyeong/Desktop/detr/detr-r50-e632da11.pth",
+    "split": "val",
+    "batch_size": 4
+  },
+  "notes": {
+    "perturbation_applied_to_male": true,
+    "perturbation_applied_to_female": true
+  }
+}

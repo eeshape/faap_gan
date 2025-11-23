@@ -1,0 +1,56 @@
+{
+  "women_train": {
+    "images_dir": "/home/dohyeong/Desktop/faap_dataset/women_split/train",
+    "annotation": "/home/dohyeong/Desktop/faap_dataset/women_split/gender_women_train.json",
+    "annotation_exists": true,
+    "num_images": 4899,
+    "extensions": {
+      ".jpg": 4899
+    }
+  },
+  "women_val": {
+    "images_dir": "/home/dohyeong/Desktop/faap_dataset/women_split/val",
+    "annotation": "/home/dohyeong/Desktop/faap_dataset/women_split/gender_women_val.json",
+    "annotation_exists": true,
+    "num_images": 1633,
+    "extensions": {
+      ".jpg": 1633
+    }
+  },
+  "women_test": {
+    "images_dir": "/home/dohyeong/Desktop/faap_dataset/women_split/test",
+    "annotation": "/home/dohyeong/Desktop/faap_dataset/women_split/gender_women_test.json",
+    "annotation_exists": true,
+    "num_images": 1634,
+    "extensions": {
+      ".jpg": 1634
+    }
+  },
+  "men_train": {
+    "images_dir": "/home/dohyeong/Desktop/faap_dataset/men_split/train",
+    "annotation": "/home/dohyeong/Desktop/faap_dataset/men_split/gender_men_train.json",
+    "annotation_exists": true,
+    "num_images": 13692,
+    "extensions": {
+      ".jpg": 13692
+    }
+  },
+  "men_val": {
+    "images_dir": "/home/dohyeong/Desktop/faap_dataset/men_split/val",
+    "annotation": "/home/dohyeong/Desktop/faap_dataset/men_split/gender_men_val.json",
+    "annotation_exists": true,
+    "num_images": 4564,
+    "extensions": {
+      ".jpg": 4564
+    }
+  },
+  "men_test": {
+    "images_dir": "/home/dohyeong/Desktop/faap_dataset/men_split/test",
+    "annotation": "/home/dohyeong/Desktop/faap_dataset/men_split/gender_men_test.json",
+    "annotation_exists": true,
+    "num_images": 4565,
+    "extensions": {
+      ".jpg": 4565
+    }
+  }
+}

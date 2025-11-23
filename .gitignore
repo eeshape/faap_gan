@@ -1,5 +1,7 @@
 __pycache__/
 *.pyc
-faap_outputs/
+faap_outputs/*
+!faap_outputs/*.json
+!faap_outputs/*.jsonl
 .DS_Store
 .vscode/
