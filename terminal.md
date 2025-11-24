@@ -14,6 +14,27 @@ python eval_faap.py \
 
 python eval_faap.py   --dataset_root /home/dohyeong/Desktop/faap_dataset   --detr_checkpoint /home/dohyeong/Desktop/detr/detr-r50-e632da11.pth   --generator_checkpoint /home/dohyeong/Desktop/faap_gan/faap_outputs_w/checkpoints/epoch_0010.pth  --split val --batch_size 16 --num_workers 16 --device cuda   --results_path faap_outputs/faap_metrics_val_perturbed_wgan_1st_0010.json
 
+
+python train_faap_wgan.py \
+  --dataset_root /home/dohyeong/Desktop/faap_dataset \
+  --detr_repo /home/dohyeong/Desktop/detr \
+  --detr_checkpoint /home/dohyeong/Desktop/detr/detr-r50-e632da11.pth \
+  --output_dir /home/dohyeong/Desktop/faap_gan/faap_outputs_w \
+  --resume /home/dohyeong/Desktop/faap_gan/faap_outputs_w/checkpoints/epoch_0008.pth \
+  --epochs 20 \
+  --device cuda \
+  --epsilon 0.05 --epsilon_final 0.2 --epsilon_warmup_epochs 5
+
+python train_faap_wgan.py \
+  --dataset_root /home/dohyeong/Desktop/faap_dataset \
+  --detr_repo /home/dohyeong/Desktop/detr \
+  --detr_checkpoint /home/dohyeong/Desktop/detr/detr-r50-e632da11.pth \
+  --output_dir /home/dohyeong/Desktop/faap_gan/faap_outputs_w_fixed02 \
+  --epochs 20 \
+  --device cuda \
+  --epsilon 0.3 --epsilon_final 0.3 --epsilon_warmup_epochs 1
+
+
 ## [gen 명령어]
 
 cd ~/Desktop/faap_gan

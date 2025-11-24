@@ -1,0 +1,125 @@
+{
+  "baseline": {
+    "male": {
+      "AP": 0.5109693176969002,
+      "AR": 0.8336783678367837
+    },
+    "female": {
+      "AP": 0.40506550633929633,
+      "AR": 0.8259475218658892
+    }
+  },
+  "perturbed": {
+    "male": {
+      "AP": 0.5123453599699251,
+      "AR": 0.834083408340834
+    },
+    "female": {
+      "AP": 0.4061866447439032,
+      "AR": 0.82555879494655
+    }
+  },
+  "deltas": {
+    "male": {
+      "AP": 0.0013760422730249022,
+      "AR": 0.00040504050405032466
+    },
+    "female": {
+      "AP": 0.0011211384046068695,
+      "AR": -0.00038872691933911074
+    }
+  },
+  "details": {
+    "baseline": {
+      "male": {
+        "AP@[0.50:0.95]_all_100": 0.5109693176969002,
+        "AP@[0.50]_all_100": 0.6281823648645575,
+        "AP@[0.75]_all_100": 0.5647047120325762,
+        "AP@[0.50:0.95]_small_100": 0.14461686982368907,
+        "AP@[0.50:0.95]_medium_100": 0.06378090948571387,
+        "AP@[0.50:0.95]_large_100": 0.5249976696936155,
+        "AR@[0.50:0.95]_all_1": 0.4505850585058505,
+        "AR@[0.50:0.95]_all_10": 0.8022952295229523,
+        "AR@[0.50:0.95]_all_100": 0.8336783678367837,
+        "AR@[0.50:0.95]_small_100": 0.28,
+        "AR@[0.50:0.95]_medium_100": 0.44499999999999995,
+        "AR@[0.50:0.95]_large_100": 0.8424474773807699
+      },
+      "female": {
+        "AP@[0.50:0.95]_all_100": 0.40506550633929633,
+        "AP@[0.50]_all_100": 0.5092793727430283,
+        "AP@[0.75]_all_100": 0.45265282104697024,
+        "AP@[0.50:0.95]_small_100": 0.011221122112211223,
+        "AP@[0.50:0.95]_medium_100": 0.08894026974901655,
+        "AP@[0.50:0.95]_large_100": 0.4153834233788463,
+        "AR@[0.50:0.95]_all_1": 0.4499028182701652,
+        "AR@[0.50:0.95]_all_10": 0.7962585034013605,
+        "AR@[0.50:0.95]_all_100": 0.8259475218658892,
+        "AR@[0.50:0.95]_small_100": 0.1,
+        "AR@[0.50:0.95]_medium_100": 0.47647058823529403,
+        "AR@[0.50:0.95]_large_100": 0.832542037586548
+      }
+    },
+    "perturbed": {
+      "male": {
+        "AP@[0.50:0.95]_all_100": 0.5123453599699251,
+        "AP@[0.50]_all_100": 0.6289234137436857,
+        "AP@[0.75]_all_100": 0.56737688400993,
+        "AP@[0.50:0.95]_small_100": 0.12117053382299887,
+        "AP@[0.50:0.95]_medium_100": 0.06035287972226157,
+        "AP@[0.50:0.95]_large_100": 0.5265499885573032,
+        "AR@[0.50:0.95]_all_1": 0.45085508550855097,
+        "AR@[0.50:0.95]_all_10": 0.801995199519952,
+        "AR@[0.50:0.95]_all_100": 0.834083408340834,
+        "AR@[0.50:0.95]_small_100": 0.28,
+        "AR@[0.50:0.95]_medium_100": 0.4492857142857143,
+        "AR@[0.50:0.95]_large_100": 0.8427695138782394
+      },
+      "female": {
+        "AP@[0.50:0.95]_all_100": 0.4061866447439032,
+        "AP@[0.50]_all_100": 0.5123004406677738,
+        "AP@[0.75]_all_100": 0.45554209622013686,
+        "AP@[0.50:0.95]_small_100": 0.021640735502121634,
+        "AP@[0.50:0.95]_medium_100": 0.08730692735979295,
+        "AP@[0.50:0.95]_large_100": 0.4165007075149133,
+        "AR@[0.50:0.95]_all_1": 0.4483479105928086,
+        "AR@[0.50:0.95]_all_10": 0.7951409135082604,
+        "AR@[0.50:0.95]_all_100": 0.82555879494655,
+        "AR@[0.50:0.95]_small_100": 0.15,
+        "AR@[0.50:0.95]_medium_100": 0.4617647058823529,
+        "AR@[0.50:0.95]_large_100": 0.8323442136498518
+      }
+    }
+  },
+  "details_text": {
+    "baseline": {
+      "male": " Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.511\n Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.628\n Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.565\n Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.145\n Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.064\n Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.525\n Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.451\n Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.802\n Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.834\n Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.280\n Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.445\n Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.842",
+      "female": " Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.405\n Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.509\n Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.453\n Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.011\n Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.089\n Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.415\n Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.450\n Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.796\n Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.826\n Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.100\n Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.476\n Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.833"
+    },
+    "perturbed": {
+      "male": " Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.512\n Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.629\n Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.567\n Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.121\n Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.060\n Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.527\n Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.451\n Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.802\n Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.834\n Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.280\n Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.449\n Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.843",
+      "female": " Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.406\n Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.512\n Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.456\n Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.022\n Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.087\n Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.417\n Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.448\n Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.795\n Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.826\n Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.150\n Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.462\n Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.832"
+    }
+  },
+  "gaps": {
+    "AP": {
+      "baseline": 0.1059038113576039,
+      "perturbed": 0.10615871522602194
+    },
+    "AR": {
+      "baseline": 0.007730845970894573,
+      "perturbed": 0.008524613394284009
+    }
+  },
+  "hyperparams": {
+    "epsilon": 0.05,
+    "generator_checkpoint": "/home/dohyeong/Desktop/faap_gan/faap_outputs_w/checkpoints/epoch_0016.pth",
+    "detr_checkpoint": "/home/dohyeong/Desktop/detr/detr-r50-e632da11.pth",
+    "split": "test",
+    "batch_size": 20
+  },
+  "notes": {
+    "perturbation_applied_to_male": true,
+    "perturbation_applied_to_female": true
+  }
+}
