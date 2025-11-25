@@ -18,6 +18,23 @@ from torch.utils.data.distributed import DistributedSampler
 
 from datasets.coco import CocoDetection, make_coco_transforms
 import util.misc as utils
+# from util.misc import NestedTensor
+# import torch
+
+# Temporarily disabling gender-aware collate until needed.
+# def collate_fn_with_gender(batch):
+#     """Custom collate function that handles (image, target, gender) tuples."""
+#     if len(batch[0]) == 3:
+#         # (image, target, gender) format
+#         images = [item[0] for item in batch]
+#         targets = [item[1] for item in batch]
+#         genders = [item[2] for item in batch]
+#         # Use DETR's nested tensor for images
+#         batch_images = utils.nested_tensor_from_tensor_list(images)
+#         return batch_images, targets, genders
+#     else:
+#         # (image, target) format - fallback to standard collate
+#         return utils.collate_fn(batch)
 
 
 _GENDER_ALIASES = {
@@ -134,6 +151,10 @@ def build_faap_dataloader(
     datasets = build_gender_datasets(root, split, include_gender=include_gender)
     combo = ConcatDataset([datasets["female"], datasets["male"]])
 
+    # Choose collate function; gender-aware collate currently disabled
+    # collate = collate_fn_with_gender if include_gender else utils.collate_fn
+    collate = utils.collate_fn
+
     if split == "train":
         if distributed:
             sampler = DistributedSampler(combo, num_replicas=world_size, rank=rank, shuffle=True, drop_last=True)
@@ -142,7 +163,7 @@ def build_faap_dataloader(
                 batch_size=batch_size,
                 sampler=sampler,
                 drop_last=True,
-                collate_fn=utils.collate_fn,
+                collate_fn=collate,
                 num_workers=num_workers,
                 pin_memory=True,
             )
@@ -152,7 +173,7 @@ def build_faap_dataloader(
             loader = DataLoader(
                 combo,
                 batch_sampler=batch_sampler,
-                collate_fn=utils.collate_fn,
+                collate_fn=collate,
                 num_workers=num_workers,
                 pin_memory=True,
             )
@@ -163,7 +184,7 @@ def build_faap_dataloader(
                 batch_size=batch_size,
                 sampler=sampler,
                 drop_last=True,
-                collate_fn=utils.collate_fn,
+                collate_fn=collate,
                 num_workers=num_workers,
                 pin_memory=True,
             )
@@ -174,7 +195,7 @@ def build_faap_dataloader(
             batch_size=batch_size,
             sampler=sampler,
             drop_last=False,
-            collate_fn=utils.collate_fn,
+            collate_fn=collate,
             num_workers=num_workers,
             pin_memory=True,
         )
