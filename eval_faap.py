@@ -1,5 +1,6 @@
 import argparse
 import json
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional, Sequence, Tuple
 
@@ -211,6 +212,7 @@ def main():
             "perturbation_applied_to_male": generator is not None,
             "perturbation_applied_to_female": generator is not None,
         },
+        "generated_at": datetime.now().astimezone().isoformat(),
     }
 
     with output_path.open("w") as f:
