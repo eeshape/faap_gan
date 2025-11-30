@@ -68,8 +68,14 @@ python train_faap_wgan_GD.py \
   --dataset_root /home/dohyeong/Desktop/faap_dataset \
   --detr_checkpoint /home/dohyeong/Desktop/detr/detr-r50-e632da11.pth \
   --output_dir faap_outputs/faap_outputs_gd \
-  --batch_size 8 --epochs 6 --device cuda
 ```
+
+[2nd train command]
+python train_faap_wgan_GD_2nd.py \
+  --dataset_root /home/dohyeong/Desktop/faap_dataset \
+  --detr_checkpoint /home/dohyeong/Desktop/detr/detr-r50-e632da11.pth \
+  --output_dir faap_outputs/faap_outputs_gd_2nd
+
 
 ## Val
 ```bash
@@ -87,6 +93,15 @@ python eval_faap.py \
   --batch_size 4 --device cuda \
   --results_path faap_outputs/faap_outputs_gd/test_metrics_epoch_0003.json
 ```
+# 2nd eval
+python eval_faap.py \
+  --dataset_root /home/dohyeong/Desktop/faap_dataset \
+  --detr_checkpoint /home/dohyeong/Desktop/detr/detr-r50-e632da11.pth \
+  --generator_checkpoint /home/dohyeong/Desktop/faap_gan/faap_outputs/faap_outputs_gd_2nd/checkpoints/epoch_0000.pth \
+  --epsilon 0.12 \
+  --split test \
+  --batch_size 6 --device cuda \
+  --results_path faap_outputs/faap_outputs_gd_2nd/test_metrics_epoch_0000.json
 
 # 꼭 입실론을 0.12로 해야할까? 만약에 다른값이면? A : train_faap_wgan_GD.py에서 설정한 값과 동일하게 맞춰야 합니다. why? train시에 설정한 값과 다르면 교란 크기가 달라져서 평가가 일관되지 않기 때문입니다.
 
