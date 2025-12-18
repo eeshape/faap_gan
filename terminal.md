@@ -1,3 +1,8 @@
+[[test datset으로 eval]]
+
+python eval_faap.py   --dataset_root /home/dohyeong/Desktop/faap_dataset   --detr_checkpoint /home/dohyeong/Desktop/detr/detr-r50-e632da11.pth   --generator_checkpoint /home/dohyeong/Desktop/faap_gan/faap_outputs/faap_outputs_faap_mmd_1st/checkpoints/epoch_0011.pth   --epsilon 0.1   --split test   --results_path faap_outputs/faap_outputs_faap_mmd_1st/test_metrics_epoch_0011.json
+
+
 ## [val명령어]
 cd /home/dohyeong/Desktop/faap_gan
 python eval_faap.py \

@@ -1,3 +1,4 @@
+import random
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -6,6 +7,7 @@ from .path_utils import DETR_REPO, ensure_detr_repo_on_path
 # ensure DETR repo is importable before pulling datasets/util
 ensure_detr_repo_on_path(DETR_REPO)
 
+import torch
 from torch.utils.data import (
     BatchSampler,
     ConcatDataset,
@@ -13,6 +15,7 @@ from torch.utils.data import (
     RandomSampler,
     SequentialSampler,
     WeightedRandomSampler,
+    Sampler,
 )
 from torch.utils.data.distributed import DistributedSampler
 
@@ -136,6 +139,38 @@ def _balanced_sampler(female_len: int, male_len: int) -> WeightedRandomSampler:
     return WeightedRandomSampler(weights, num_samples=num_samples, replacement=True)
 
 
+class BalancedSubsetSampler(Sampler[int]):
+    """Draw up to `max_per_gender` samples per gender without replacement, then shuffle."""
+
+    def __init__(self, female_len: int, male_len: int, max_per_gender: int, generator: torch.Generator | None = None):
+        self.female_len = female_len
+        self.male_len = male_len
+        self.max_per_gender = max_per_gender
+        self.generator = generator
+
+    def __iter__(self):
+        g = self.generator
+        max_f = min(self.max_per_gender, self.female_len)
+        max_m = min(self.max_per_gender, self.male_len)
+        if g is not None:
+            idx_f = torch.randperm(self.female_len, generator=g)[:max_f].tolist()
+            idx_m = torch.randperm(self.male_len, generator=g)[:max_m].tolist()
+        else:
+            idx_f = torch.randperm(self.female_len)[:max_f].tolist()
+            idx_m = torch.randperm(self.male_len)[:max_m].tolist()
+        offset_m = [self.female_len + i for i in idx_m]
+        combined = idx_f + offset_m
+        if g is not None:
+            perm = torch.randperm(len(combined), generator=g).tolist()
+            combined = [combined[i] for i in perm]
+        else:
+            random.shuffle(combined)
+        return iter(combined)
+
+    def __len__(self):
+        return min(self.max_per_gender, self.female_len) + min(self.max_per_gender, self.male_len)
+
+
 def build_faap_dataloader(
     root: Path,
     split: str,
@@ -143,6 +178,7 @@ def build_faap_dataloader(
     *,
     include_gender: bool = True,
     balance_genders: bool = True,
+    max_per_gender: int | None = None,
     num_workers: int = 4,
     distributed: bool = False,
     rank: int = 0,
@@ -168,7 +204,10 @@ def build_faap_dataloader(
                 pin_memory=True,
             )
         elif balance_genders:
-            sampler = _balanced_sampler(len(datasets["female"]), len(datasets["male"]))
+            if max_per_gender is not None:
+                sampler = BalancedSubsetSampler(len(datasets["female"]), len(datasets["male"]), max_per_gender)
+            else:
+                sampler = _balanced_sampler(len(datasets["female"]), len(datasets["male"]))
             batch_sampler = BatchSampler(sampler, batch_size, drop_last=True)
             loader = DataLoader(
                 combo,
