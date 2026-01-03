@@ -124,7 +124,8 @@ def evaluate_split(
     return ap, ar, _coco_stats_dict(stats), _coco_stats_text(stats)
 
 
-def main():
+def main_legacy():
+    """Legacy main function - evaluates baseline first, then perturbed."""
     args = parse_args()
     detr_repo = ensure_detr_repo_on_path(Path(args.detr_repo))
     ckpt_path = Path(args.detr_checkpoint)
@@ -173,6 +174,114 @@ def main():
         pert_female_ap, pert_female_ar, pert_female_stats, pert_female_text = evaluate_split(
             detr, female_loader, device=device, generator=generator
         )
+
+    deltas = {
+        "male": {"AP": pert_male_ap - baseline_male_ap, "AR": pert_male_ar - baseline_male_ar},
+        "female": {"AP": pert_female_ap - baseline_female_ap, "AR": pert_female_ar - baseline_female_ar},
+    }
+
+    results = {
+        "baseline": {
+            "male": {"AP": baseline_male_ap, "AR": baseline_male_ar},
+            "female": {"AP": baseline_female_ap, "AR": baseline_female_ar},
+        },
+        "perturbed": {
+            "male": {"AP": pert_male_ap, "AR": pert_male_ar},
+            "female": {"AP": pert_female_ap, "AR": pert_female_ar},
+        },
+        "deltas": deltas,
+        "details": {
+            "baseline": {"male": baseline_male_stats, "female": baseline_female_stats},
+            "perturbed": {"male": pert_male_stats, "female": pert_female_stats},
+        },
+        "details_text": {
+            "baseline": {"male": baseline_male_text, "female": baseline_female_text},
+            "perturbed": {"male": pert_male_text, "female": pert_female_text},
+        },
+        "gaps": {
+            "AP": {"baseline": baseline_male_ap - baseline_female_ap, "perturbed": pert_male_ap - pert_female_ap},
+            "AR": {"baseline": baseline_male_ar - baseline_female_ar, "perturbed": pert_male_ar - pert_female_ar},
+        },
+        "hyperparams": {
+            "epsilon": args.epsilon,
+            "generator_checkpoint": args.generator_checkpoint,
+            "detr_checkpoint": args.detr_checkpoint,
+            "split": args.split,
+            "batch_size": args.batch_size,
+        },
+        "notes": {
+            "perturbation_applied_to_male": generator is not None,
+            "perturbation_applied_to_female": generator is not None,
+        },
+        "generated_at": datetime.now().astimezone().isoformat(),
+    }
+
+    with output_path.open("w") as f:
+        json.dump(results, f, indent=2)
+    print(f"Saved metrics to {output_path}")
+
+
+def main():
+    """Main function - evaluates perturbed first, then baseline."""
+    args = parse_args()
+    detr_repo = ensure_detr_repo_on_path(Path(args.detr_repo))
+    ckpt_path = Path(args.detr_checkpoint)
+    if not ckpt_path.is_absolute():
+        ckpt_path = detr_repo / ckpt_path
+    device = torch.device(args.device if torch.cuda.is_available() else "cpu")
+    output_path = Path(args.results_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    detr = FrozenDETR(checkpoint_path=ckpt_path, device=str(device), detr_repo=detr_repo)
+
+    generator = None
+    if args.generator_checkpoint:
+        generator = PerturbationGenerator(epsilon=args.epsilon).to(device)
+        state = torch.load(args.generator_checkpoint, map_location=device)
+        if "generator" in state:
+            generator.load_state_dict(state["generator"])
+        else:
+            generator.load_state_dict(state)
+
+    gender_ds = build_gender_datasets(Path(args.dataset_root), args.split, include_gender=False)
+    male_loader = build_eval_loader(gender_ds["male"], args.batch_size, args.num_workers)
+    female_loader = build_eval_loader(gender_ds["female"], args.batch_size, args.num_workers)
+
+    # Initialize perturbed results with baseline defaults
+    pert_male_ap, pert_male_ar = 0.0, 0.0
+    pert_female_ap, pert_female_ar = 0.0, 0.0
+    pert_male_stats, pert_female_stats = {}, {}
+    pert_male_text, pert_female_text = "", ""
+
+    # Evaluate perturbed FIRST
+    if generator is not None:
+        print(f"=== Evaluating perturbed (male) split={args.split} ===", flush=True)
+        pert_male_ap, pert_male_ar, pert_male_stats, pert_male_text = evaluate_split(
+            detr, male_loader, device=device, generator=generator
+        )
+        print(f"=== Evaluating perturbed (female) split={args.split} ===", flush=True)
+        pert_female_ap, pert_female_ar, pert_female_stats, pert_female_text = evaluate_split(
+            detr, female_loader, device=device, generator=generator
+        )
+
+    # Evaluate baseline SECOND
+    print(f"=== Evaluating baseline (male) split={args.split} ===", flush=True)
+    baseline_male_ap, baseline_male_ar, baseline_male_stats, baseline_male_text = evaluate_split(
+        detr, male_loader, device=device, generator=None
+    )
+    print(f"=== Evaluating baseline (female) split={args.split} ===", flush=True)
+    baseline_female_ap, baseline_female_ar, baseline_female_stats, baseline_female_text = evaluate_split(
+        detr, female_loader, device=device, generator=None
+    )
+
+    # If no generator, copy baseline to perturbed
+    if generator is None:
+        pert_male_ap, pert_male_ar = baseline_male_ap, baseline_male_ar
+        pert_female_ap, pert_female_ar = baseline_female_ap, baseline_female_ar
+        pert_male_stats = baseline_male_stats
+        pert_female_stats = baseline_female_stats
+        pert_male_text = baseline_male_text
+        pert_female_text = baseline_female_text
 
     deltas = {
         "male": {"AP": pert_male_ap - baseline_male_ap, "AR": pert_male_ar - baseline_male_ar},

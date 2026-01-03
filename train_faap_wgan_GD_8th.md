@@ -121,30 +121,39 @@ where:
 
 ## 실행 방법
 
-### 기본 실행
+### 기본 실행 (모든 설정이 default로 적용)
 ```bash
-python train_faap_wgan_GD_8th.py \
-  --epochs 24 \
-  --epsilon 0.05 \
-  --epsilon_final 0.10 \
-  --epsilon_min 0.09 \
-  --epsilon_warmup_epochs 8 \
-  --epsilon_hold_epochs 8 \
-  --epsilon_cooldown_epochs 8 \
-  --beta 0.5 \
-  --beta_final 0.6 \
-  --lambda_w 0.2 \
-  --lambda_w_boost 0.3 \
-  --lambda_w_boost_epoch 20 \
-  --fair_f_scale 1.0 \
-  --fair_m_scale 0.5
+cd /home/dohyeong/Desktop/faap_gan
+python train_faap_wgan_GD_8th.py
+```
+
+### 단일 GPU 지정 (batch_size 조정)
+```bash
+cd /home/dohyeong/Desktop/faap_gan
+CUDA_VISIBLE_DEVICES=2 python train_faap_wgan_GD_8th.py --batch_size 8
 ```
 
 ### 분산 학습 (DDP)
 ```bash
-torchrun --nproc_per_node=2 train_faap_wgan_GD_8th.py \
-  --distributed \
-  --epochs 24
+cd /home/dohyeong/Desktop
+torchrun --nproc_per_node=2 --master_port=29500 \
+  -m faap_gan.train_faap_wgan_GD_8th \
+  --distributed
+```
+
+### 하이퍼파라미터 변경 예시
+```bash
+# Lambda_w boost 시점 변경
+python train_faap_wgan_GD_8th.py --lambda_w_boost_epoch 18
+
+# Lambda_w boost 값 변경
+python train_faap_wgan_GD_8th.py --lambda_w_boost 0.35
+
+# 복합 변경
+python train_faap_wgan_GD_8th.py \
+  --lambda_w_boost_epoch 18 \
+  --lambda_w_boost 0.35 \
+  --batch_size 8
 ```
 
 ### 평가
