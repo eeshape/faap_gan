@@ -1,5 +1,6 @@
 import argparse
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional, Sequence, Tuple
@@ -38,7 +39,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--batch_size", type=int, default=10)
     parser.add_argument("--num_workers", type=int, default=10)
     parser.add_argument("--device", type=str, default="cuda")
-    parser.add_argument("--results_path", type=str, default="faap_outputs/faap_metrics.json")
+    parser.add_argument("--results_path", type=str, default="", help="output path for metrics (auto-generated if empty)")
     return parser.parse_args()
 
 
@@ -221,6 +222,51 @@ def main_legacy():
     print(f"Saved metrics to {output_path}")
 
 
+def _infer_output_path(generator_checkpoint: Optional[str], split: str, default_dir: str = "faap_outputs") -> Path:
+    """generator_checkpoint 경로에서 output_dir, 방법명, epoch 번호를 추출하여 결과 파일 경로 생성.
+    
+    형식: output_dir/{split}_metrics_{method}_{version}_epoch_{XXXX}.json
+    
+    예시:
+    - faap_outputs/faap_outputs_gd_7th/checkpoints/epoch_0023.pth
+      → faap_outputs/faap_outputs_gd_7th/test_metrics_gd_7th_epoch_0023.json
+    - faap_outputs/faap_outputs_contrastive_2nd/checkpoints/epoch_0015.pth
+      → faap_outputs/faap_outputs_contrastive_2nd/test_metrics_contrastive_2nd_epoch_0015.json
+    """
+    if not generator_checkpoint:
+        return Path(default_dir) / "faap_metrics.json"
+    
+    ckpt_path = Path(generator_checkpoint)
+    
+    # epoch 번호 추출 (epoch_XXXX.pth 패턴)
+    epoch_match = re.search(r'epoch_(\d{4})', ckpt_path.name)
+    epoch_str = epoch_match.group(1) if epoch_match else "0000"
+    
+    # output_dir 찾기 (checkpoints의 부모 디렉터리)
+    if "checkpoints" in ckpt_path.parts:
+        idx = ckpt_path.parts.index("checkpoints")
+        output_dir = Path(*ckpt_path.parts[:idx])
+    else:
+        # checkpoints 폴더가 아니면 파일의 부모 디렉터리 사용
+        output_dir = ckpt_path.parent
+    
+    # 방법명 추출 (faap_outputs_XXX 패턴)
+    method_name = ""
+    for part in output_dir.parts:
+        if part.startswith("faap_outputs_"):
+            # faap_outputs_ 접두사 제거
+            method_name = part[13:]  # len("faap_outputs_") = 13
+            break
+    
+    # 방법명이 있으면 포함, 없으면 기본 형식
+    if method_name:
+        filename = f"{split}_metrics_{method_name}_epoch_{epoch_str}.json"
+    else:
+        filename = f"{split}_metrics_epoch_{epoch_str}.json"
+    
+    return output_dir / filename
+
+
 def main():
     """Main function - evaluates perturbed first, then baseline."""
     args = parse_args()
@@ -229,7 +275,13 @@ def main():
     if not ckpt_path.is_absolute():
         ckpt_path = detr_repo / ckpt_path
     device = torch.device(args.device if torch.cuda.is_available() else "cpu")
-    output_path = Path(args.results_path)
+    
+    # 7th 스타일 output 경로 자동 생성
+    if args.results_path:
+        output_path = Path(args.results_path)
+    else:
+        output_path = _infer_output_path(args.generator_checkpoint, args.split)
+    
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     detr = FrozenDETR(checkpoint_path=ckpt_path, device=str(device), detr_repo=detr_repo)
