@@ -60,7 +60,7 @@ def parse_args() -> argparse.Namespace:  # 커맨드라인 인자를 파싱해 N
     )
     parser.add_argument("--device", type=str, default="cuda")  # 기본 디바이스 설정
     parser.add_argument("--epochs", type=int, default=28)  # 학습 에폭 수 (7th 24 → 28로 증가)
-    parser.add_argument("--batch_size", type=int, default=2)  # 배치 크기
+    parser.add_argument("--batch_size", type=int, default=5)  # 배치 크기
     parser.add_argument("--num_workers", type=int, default=8)  # 데이터로더 워커 수
     parser.add_argument("--lr_g", type=float, default=1e-4)  # 생성기 학습률
     parser.add_argument("--lr_d", type=float, default=1e-4)  # 판별기 학습률

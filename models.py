@@ -175,9 +175,9 @@ class GenderDiscriminator(nn.Module):
         self.net = nn.Sequential(
             nn.LayerNorm(feature_dim),
             nn.Linear(feature_dim, hidden_dim),
-            nn.ReLU(inplace=True),
+            nn.ReLU(inplace=False),
             nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(inplace=True),
+            nn.ReLU(inplace=False),
             nn.Linear(hidden_dim, 2),
         )
 
