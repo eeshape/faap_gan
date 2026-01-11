@@ -1,73 +1,78 @@
 """
-FAAP Training - 11th Version: Unified Fairness Framework
+FAAP Training - 12th Version: Discriminator-Free Progressive Alignment
 
 ================================================================================
-                         세 가지 방법론 융합 분석
+                         11th와의 핵심 차별점
 ================================================================================
 
-[Contrastive 1st 핵심 강점]
-- AR Gap -61.73% 달성 (최대 감소)
-- 특징 공간에서 성별 정보 직접 제거
-- InfoNCE Loss로 다른 성별을 positive pair로 취급
-- Discriminator 없이 안정적 학습
+[11th 방식 - Unified Framework]
+- Discriminator 사용 (GAN 학습)
+- epsilon = 0.01 고정 (매우 작음)
+- Contrastive + GAN + Quantile 모두 융합
+- 복잡한 손실 함수 구조
 
-[GD 7th 핵심 강점]
-- AP Gap -0.42% 달성 (유일한 감소!)
-- 비대칭 Fairness 스케일링 (Female 1.0, Male 0.5)
-- 단방향 Wasserstein: Female→Male만 정렬 (Male 성능 보호)
-- 적대적 학습으로 성별 예측 불가능하게
-
-[GD 10th 핵심 강점]
-- 최고 절대 성능 (Male 51.98%, Female 41.23%)
-- Quantile Matching: AP 계산에 중요한 높은 score 영역 정밀 정렬
-- Detection Guard: 성별별 Detection 하락 방지
+[12th 방식 - Discriminator-Free Fixed] ⭐ NEW ⭐
+- Discriminator 완전 제거 → 학습 안정성 극대화
+- epsilon = 0.06 고정 (스케줄 없음 - 단순화)
+- Focal Fairness Loss: 어려운 샘플에 더 집중
+- 모든 하이퍼파라미터 고정 (재현성 극대화)
+- 단순하지만 효과적인 손실 함수 구조
 
 ================================================================================
-                         11th 설계 철학
+                         12th 설계 철학
 ================================================================================
 
-1. Epsilon 0.01 환경의 특성:
-   - 매우 작은 perturbation → Detection 성능 유지 용이
-   - 특징 공간 정렬이 더 중요해짐 (Contrastive 우선)
-   - 작은 변화로도 효과를 내야 함 → 손실 함수 효율성 극대화
+1. Discriminator 제거의 이점:
+   - GAN 학습 불안정성 완전 제거
+   - Mode collapse 위험 없음
+   - Contrastive 1st에서 AR Gap -61.73% 달성한 핵심 요소
+   - 더 단순한 학습 다이나믹스
 
-2. 핵심 융합 전략:
-   - Contrastive의 ProjectionHead + InfoNCE (AR Gap 감소)
-   - GD 7th의 비대칭 스케일링 + 단방향 Wasserstein (AP Gap 감소)
-   - GD 10th의 Quantile Matching (정밀 분포 정렬)
-   - Discriminator 사용 (단, 작은 epsilon에 맞게 가중치 조정)
-
-3. 스케줄 미사용, 하이퍼파라미터 고정:
+2. 고정 Epsilon 전략:
+   - epsilon = 0.06 고정 (스케줄 제거)
+   - Contrastive 1st의 0.08과 11th의 0.01 사이 중간값
    - 단순하고 재현 가능한 학습
-   - epsilon=0.01 고정
+   - 스케줄 복잡도 제거로 안정성 증가
+
+3. Focal Fairness Loss (핵심 혁신):
+   - 일반 손실: 모든 샘플에 동일한 가중치
+   - Focal 손실: 예측이 어려운(score 낮은) 샘플에 더 높은 가중치
+   - Female 그룹의 어려운 샘플을 집중적으로 개선
+   - 공식: FocalLoss = -α × (1 - p)^γ × log(p)
+
+4. 고정 가중치 전략:
+   - 모든 epoch에서 동일한 가중치 사용
+   - β = 0.55 고정 (Detection 보호)
+   - λ_focal = 0.4 고정 (Focal weight)
+   - 재현성과 안정성 극대화
 
 ================================================================================
-                         손실 함수 구조
+                         손실 함수 구조 (단순화)
 ================================================================================
 
 G_Loss = β × Detection_Loss                        # Detection 보호
        + λ_contrast × Cross_Gender_Contrastive     # 특징 공간 정렬 (핵심)
        + λ_align × Mean_Alignment                  # 평균 특징 벡터 정렬
        + λ_var × Variance_Alignment                # 분산 정렬
-       + λ_fair × (Adversarial + α × Entropy)      # 적대적 공정성
+       + λ_focal × Focal_Score_Alignment           # Focal 기반 score 정렬 (NEW)
        + λ_w × Wasserstein_1D (단방향)              # 분포 정렬
-       + λ_q × Quantile_Matching                   # 분위수 정렬
+
+주요 변화:
+- Discriminator 관련 손실 제거 (λ_fair × Adversarial 제거)
+- Focal Score Alignment 추가 (어려운 샘플 집중)
+- Quantile Matching → Focal로 대체 (더 직관적)
 
 하이퍼파라미터 (모두 고정):
-- epsilon = 0.01 (매우 작은 perturbation)
-- β = 0.3 (Detection 보호, epsilon 작으므로 낮춤)
-- λ_contrast = 1.0 (Contrastive, 핵심 - AR Gap 감소)
-- λ_align = 0.5 (Mean Alignment)
+- epsilon = 0.06 (고정, 스케줄 없음)
+- β = 0.55 (Detection 보호, 고정)
+- λ_contrast = 1.2 (Contrastive, 핵심 - Discriminator 없으므로 증가)
+- λ_align = 0.6 (Mean Alignment)
 - λ_var = 0.15 (Variance Alignment)
-- λ_fair = 1.5 (Adversarial Fairness)
-- α = 0.2 (Entropy 가중치)
+- λ_focal = 0.4 (Focal Score Alignment, NEW, 고정)
 - λ_w = 0.3 (Wasserstein, 단방향)
-- λ_q = 0.25 (Quantile Matching)
-- fair_f_scale = 1.0 (Female 중점)
-- fair_m_scale = 0.4 (Male 낮춤 - GD 7th 성공 요소)
-- temperature = 0.07 (Contrastive, 낮을수록 sharp)
-- proj_dim = 128 (Projection 차원)
-- k_d = 3 (Discriminator 업데이트 횟수)
+- temperature = 0.07 (Contrastive)
+- focal_gamma = 2.0 (Focal exponent)
+- focal_alpha = 0.75 (Female 가중치)
 
 ================================================================================
 """
@@ -96,7 +101,7 @@ from torch import nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from .datasets import build_faap_dataloader, inspect_faap_dataset
-from .models import FrozenDETR, GenderDiscriminator, PerturbationGenerator, clamp_normalized
+from .models import FrozenDETR, PerturbationGenerator, clamp_normalized
 from .path_utils import DETR_REPO, default_detr_checkpoint, ensure_detr_repo_on_path
 import util.misc as utils
 from util.misc import NestedTensor
@@ -117,7 +122,7 @@ def _default_output_dir(script_path: Path) -> str:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        "FAAP Training 11th - Unified Fairness Framework (Contrastive + GAN + Quantile)",
+        "FAAP Training 12th - Discriminator-Free Fixed Hyperparameters",
         add_help=True
     )
     parser.add_argument("--dataset_root", type=str, default="/home/dohyeong/Desktop/faap_dataset")
@@ -130,26 +135,22 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--epochs", type=int, default=30)
-    parser.add_argument("--batch_size", type=int, default=6)
-    parser.add_argument("--num_workers", type=int, default=10)
+    parser.add_argument("--batch_size", type=int, default=7)  # Discriminator 없어 메모리 여유
+    parser.add_argument("--num_workers", type=int, default=12)
     parser.add_argument("--lr_g", type=float, default=1e-4, help="generator learning rate")
-    parser.add_argument("--lr_d", type=float, default=5e-5, help="discriminator learning rate (낮춤)")
     
     # ===== Epsilon (고정값) =====
-    parser.add_argument("--epsilon", type=float, default=0.1, help="perturbation bound (고정)")
+    parser.add_argument("--epsilon", type=float, default=0.06, help="perturbation bound (고정)")
     
     # ===== Detection Loss 가중치 (고정값) =====
-    parser.add_argument("--beta", type=float, default=0.3, help="detection loss weight (epsilon 작으므로 낮춤)")
+    parser.add_argument("--beta", type=float, default=0.55, help="detection loss weight (고정)")
     
-    # ===== Discriminator 설정 =====
-    parser.add_argument("--k_d", type=int, default=3, help="discriminator steps per iteration")
-    
-    # ===== Contrastive Fairness 설정 (Contrastive 1st 핵심) =====
+    # ===== Contrastive Fairness 설정 (핵심) =====
     parser.add_argument(
         "--lambda_contrast",
         type=float,
-        default=1.0,
-        help="weight for contrastive fairness loss (핵심 - AR Gap 감소)",
+        default=1.2,
+        help="weight for contrastive fairness loss (핵심 - Discriminator 없으므로 증가)",
     )
     parser.add_argument(
         "--temperature",
@@ -160,7 +161,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--lambda_align",
         type=float,
-        default=0.5,
+        default=0.6,
         help="weight for feature mean alignment loss",
     )
     parser.add_argument(
@@ -176,25 +177,24 @@ def parse_args() -> argparse.Namespace:
         help="projection dimension for contrastive learning",
     )
     
-    # ===== Adversarial Fairness 설정 (GD 7th 핵심) =====
+    # ===== Focal Fairness 설정 (NEW) =====
     parser.add_argument(
-        "--lambda_fair",
-        type=float,
-        default=1.5,
-        help="weight for adversarial fairness loss",
-    )
-    parser.add_argument("--alpha", type=float, default=0.2, help="entropy weight for fairness")
-    parser.add_argument(
-        "--fair_f_scale",
-        type=float,
-        default=1.0,
-        help="female fairness scaling factor (GD 7th 핵심)",
-    )
-    parser.add_argument(
-        "--fair_m_scale",
+        "--lambda_focal",
         type=float,
         default=0.4,
-        help="male fairness scaling factor (비대칭 - GD 7th 핵심)",
+        help="weight for focal score alignment loss (어려운 샘플 집중)",
+    )
+    parser.add_argument(
+        "--focal_gamma",
+        type=float,
+        default=2.0,
+        help="focal loss exponent (높을수록 어려운 샘플에 집중)",
+    )
+    parser.add_argument(
+        "--focal_alpha",
+        type=float,
+        default=0.75,
+        help="focal loss female weight (Female 그룹 중점)",
     )
     
     # ===== Distribution Alignment 설정 =====
@@ -203,18 +203,6 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=0.3,
         help="weight for Wasserstein alignment (단방향: F→M)",
-    )
-    parser.add_argument(
-        "--lambda_q",
-        type=float,
-        default=0.25,
-        help="weight for quantile matching loss (GD 10th 핵심)",
-    )
-    parser.add_argument(
-        "--num_quantiles",
-        type=int,
-        default=5,
-        help="number of quantile levels for matching",
     )
 
     parser.add_argument(
@@ -238,7 +226,12 @@ def parse_args() -> argparse.Namespace:
 
 
 # ============================================================
-# Projection Head (Contrastive 1st에서 가져옴)
+# Note: Schedule 함수 제거 - 모든 하이퍼파라미터 고정
+# ============================================================
+
+
+# ============================================================
+# Projection Head (Contrastive Learning)
 # ============================================================
 
 class ProjectionHead(nn.Module):
@@ -253,7 +246,7 @@ class ProjectionHead(nn.Module):
         self.net = nn.Sequential(
             nn.LayerNorm(input_dim),
             nn.Linear(input_dim, hidden_dim),
-            nn.GELU(),  # ReLU 대신 GELU 사용 (더 부드러운 활성화)
+            nn.GELU(),
             nn.Linear(hidden_dim, output_dim),
         )
     
@@ -292,13 +285,6 @@ def _unwrap_ddp(module: nn.Module) -> nn.Module:
 def _set_generator_epsilon(generator: nn.Module, epsilon: float) -> None:
     """Generator의 epsilon 설정"""
     _unwrap_ddp(generator).epsilon = epsilon
-
-
-def _entropy_loss(logits: torch.Tensor) -> torch.Tensor:
-    """Entropy 손실: 판별기 출력의 불확실성 최대화"""
-    probs = torch.softmax(logits, dim=-1)
-    log_probs = torch.log(probs + 1e-8)
-    return -(probs * log_probs).sum(dim=-1).mean()
 
 
 def _resize_sorted(scores: torch.Tensor, target_len: int) -> torch.Tensor:
@@ -342,32 +328,23 @@ def _cross_gender_contrastive_loss(
     proj_m: torch.Tensor,
     temperature: float = 0.07,
 ) -> torch.Tensor:
-    """Cross-Gender Contrastive Loss (Contrastive 1st 핵심)
+    """Cross-Gender Contrastive Loss
     
     핵심 아이디어:
     - 다른 성별 샘플을 positive pair로 취급
     - 성별 정보가 특징에서 제거되도록 유도
-    - AR Gap 감소에 매우 효과적
-    
-    Args:
-        proj_f: 여성 샘플의 투영된 특징 (N_f, proj_dim), L2 정규화됨
-        proj_m: 남성 샘플의 투영된 특징 (N_m, proj_dim), L2 정규화됨
-        temperature: softmax temperature (낮을수록 sharp)
-    
-    Returns:
-        Contrastive loss (여성→남성 + 남성→여성 평균)
+    - AR Gap 감소에 매우 효과적 (-61.73% 달성)
     """
     if proj_f.size(0) == 0 or proj_m.size(0) == 0:
         return proj_f.new_tensor(0.0)
     
     n_f, n_m = proj_f.size(0), proj_m.size(0)
     
-    # 모든 샘플 간 유사도 행렬 (코사인 유사도, 이미 L2 정규화됨)
+    # 모든 샘플 간 유사도 행렬 (코사인 유사도)
     sim_f_to_m = torch.mm(proj_f, proj_m.t()) / temperature  # (N_f, N_m)
     sim_m_to_f = sim_f_to_m.t()  # (N_m, N_f)
     
     # 여성→남성: 각 여성이 모든 남성과 유사해지도록
-    # log_softmax 기반 손실 (모든 남성을 동등하게 positive로)
     loss_f_to_m = -torch.logsumexp(sim_f_to_m, dim=1).mean() + \
                    torch.log(torch.tensor(n_m, dtype=torch.float, device=proj_f.device))
     
@@ -382,17 +359,10 @@ def _feature_alignment_loss(
     feat_f: torch.Tensor,
     feat_m: torch.Tensor,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
-    """Feature Alignment Loss: 성별 간 특징 분포 정렬 (Contrastive 1st)
+    """Feature Alignment Loss: 성별 간 특징 분포 정렬
     
     1. Mean Alignment: 평균 특징 벡터를 일치시킴
-    2. Variance Alignment: 분산을 일치시킴 (분포 형태 유사화)
-    
-    Args:
-        feat_f: 여성 샘플의 특징 (N_f, num_queries, feature_dim)
-        feat_m: 남성 샘플의 특징 (N_m, num_queries, feature_dim)
-    
-    Returns:
-        (mean_loss, var_loss)
+    2. Variance Alignment: 분산을 일치시킴
     """
     if feat_f.size(0) == 0 or feat_m.size(0) == 0:
         zero = feat_f.new_tensor(0.0)
@@ -421,69 +391,71 @@ def _feature_alignment_loss(
 
 
 def _wasserstein_1d(female_scores: torch.Tensor, male_scores: torch.Tensor) -> torch.Tensor:
-    """단방향 Wasserstein 손실 (GD 7th 핵심)
+    """단방향 Wasserstein 손실
     
     여성 score가 남성보다 낮을 때만 패널티.
-    이렇게 하면 남성 성능은 유지하면서 여성만 향상시킴.
-    
-    AP Gap 감소에 효과적 (GD 7th에서 유일하게 AP Gap 감소 달성)
+    남성 성능은 유지하면서 여성만 향상시킴.
     """
     if female_scores.numel() == 0 or male_scores.numel() == 0:
         return female_scores.new_tensor(0.0, device=female_scores.device)
     
     sorted_f = female_scores.sort().values
-    sorted_m = male_scores.detach().sort().values  # 남성은 detach로 타겟 역할 (보호)
+    sorted_m = male_scores.detach().sort().values  # 남성은 detach (보호)
     
     k = max(sorted_f.numel(), sorted_m.numel())
     sorted_f = _resize_sorted(sorted_f, k)
     sorted_m = _resize_sorted(sorted_m, k)
     
-    # 단방향: 여성이 남성보다 낮을 때만 손실 발생 (여성 → 남성 방향 이동)
+    # 단방향: 여성이 남성보다 낮을 때만 손실
     return F.relu(sorted_m - sorted_f).mean()
 
 
-def _quantile_matching_loss(
-    source_scores: torch.Tensor,
-    target_scores: torch.Tensor,
-    num_quantiles: int = 5
+def _focal_score_alignment_loss(
+    female_scores: torch.Tensor,
+    male_scores: torch.Tensor,
+    gamma: float = 2.0,
+    alpha: float = 0.75,
 ) -> torch.Tensor:
-    """Quantile Matching Loss (GD 10th 핵심)
+    """Focal Score Alignment Loss (NEW - 12th 핵심 혁신)
     
-    특정 분위수에서의 차이를 직접 최소화.
-    높은 분위수에 더 높은 가중치 부여 → AP 개선에 효과적.
+    핵심 아이디어:
+    - 일반 MSE는 모든 샘플에 동일한 가중치
+    - Focal Loss는 어려운(score 낮은) 샘플에 더 높은 가중치
+    - Female 그룹의 어려운 샘플을 집중적으로 개선
     
-    Wasserstein보다 해석 가능하고, AP 계산에 중요한 영역 집중.
+    공식:
+    - p = normalized score (0~1)
+    - focal_weight = (1 - p)^gamma
+    - loss = alpha × focal_weight × (target - p)^2
     
     Args:
-        source_scores: 정렬 대상 그룹의 detection confidence scores (Female)
-        target_scores: 타겟 그룹의 detection confidence scores (Male)
-        num_quantiles: 사용할 분위수 개수 (기본 5 = [0.1, 0.3, 0.5, 0.7, 0.9])
+        female_scores: Female detection scores
+        male_scores: Male detection scores (target distribution)
+        gamma: Focal exponent (높을수록 어려운 샘플에 집중)
+        alpha: Female 그룹 가중치
     
     Returns:
-        단방향 quantile 차이 손실
+        Focal-weighted score alignment loss
     """
-    if source_scores.numel() < num_quantiles or target_scores.numel() < num_quantiles:
-        return source_scores.new_tensor(0.0, device=source_scores.device)
+    if female_scores.numel() == 0 or male_scores.numel() == 0:
+        return female_scores.new_tensor(0.0, device=female_scores.device)
     
-    # 분위수 레벨 생성 (예: [0.167, 0.333, 0.5, 0.667, 0.833] for num_quantiles=5)
-    quantile_levels = torch.linspace(
-        1.0 / (num_quantiles + 1),
-        num_quantiles / (num_quantiles + 1),
-        num_quantiles,
-        device=source_scores.device
-    )
+    # Male 평균 score를 목표로 설정
+    target_score = male_scores.detach().mean()
     
-    # 각 그룹의 분위수 계산
-    q_source = torch.quantile(source_scores, quantile_levels)
-    q_target = torch.quantile(target_scores.detach(), quantile_levels)  # target은 detach
+    # Female score를 0-1로 정규화 (clamp로 안정화)
+    p = female_scores.clamp(0.01, 0.99)
     
-    # 단방향 손실: source 분위수가 target보다 낮을 때만 패널티
-    # 높은 분위수(예: 70%, 90%)에 더 높은 가중치 부여 → AP 개선에 효과적
-    weights = quantile_levels  # [0.17, 0.33, 0.5, 0.67, 0.83] - 높은 분위수에 높은 가중치
-    weights = weights / weights.sum()  # 정규화
-    weighted_diff = weights * F.relu(q_target - q_source)
+    # Focal weight: 낮은 score에 높은 가중치
+    # (1 - p)^gamma → p가 낮을수록 (1-p)가 커지고, gamma 제곱으로 더 증폭
+    focal_weight = (1 - p) ** gamma
     
-    return weighted_diff.sum()
+    # 손실: Male 평균과의 차이를 Focal weight로 가중
+    # 단방향: Female이 Male보다 낮을 때만 패널티
+    diff = F.relu(target_score - p)
+    loss = alpha * focal_weight * (diff ** 2)
+    
+    return loss.mean()
 
 
 # ============================================================
@@ -531,14 +503,11 @@ def main():
         with (output_dir / "dataset_layout.json").open("w") as f:
             json.dump(dataset_info, f, indent=2)
 
-    # ===== 모델 초기화 =====
+    # ===== 모델 초기화 (Discriminator 없음!) =====
     detr = FrozenDETR(checkpoint_path=ckpt_path, device=str(device), detr_repo=detr_repo)
     generator = PerturbationGenerator(epsilon=args.epsilon).to(device)
     
-    # Discriminator (GD 7th 방식)
-    discriminator = GenderDiscriminator(feature_dim=detr.hidden_dim).to(device)
-    
-    # Projection Head (Contrastive 1st 방식)
+    # Projection Head만 사용 (Discriminator 제거!)
     proj_head = ProjectionHead(
         input_dim=detr.hidden_dim,
         hidden_dim=detr.hidden_dim,
@@ -547,13 +516,14 @@ def main():
     
     if args.distributed:
         generator = DDP(generator, device_ids=[args.gpu] if args.gpu is not None else None)
-        discriminator = DDP(discriminator, device_ids=[args.gpu] if args.gpu is not None else None)
         proj_head = DDP(proj_head, device_ids=[args.gpu] if args.gpu is not None else None)
 
-    # Generator + Projection Head를 함께 최적화
+    # Generator + Projection Head만 최적화 (Discriminator 없음)
     g_params = list(_unwrap_ddp(generator).parameters()) + list(_unwrap_ddp(proj_head).parameters())
     opt_g = torch.optim.Adam(g_params, lr=args.lr_g)
-    opt_d = torch.optim.Adam(_unwrap_ddp(discriminator).parameters(), lr=args.lr_d)
+    
+    # Learning rate scheduler (CosineAnnealing)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(opt_g, T_max=args.epochs, eta_min=1e-6)
 
     start_epoch = 0
     
@@ -561,14 +531,12 @@ def main():
         ckpt = torch.load(args.resume, map_location=device)
         if "generator" in ckpt:
             _unwrap_ddp(generator).load_state_dict(ckpt["generator"])
-        if "discriminator" in ckpt:
-            _unwrap_ddp(discriminator).load_state_dict(ckpt["discriminator"])
         if "proj_head" in ckpt:
             _unwrap_ddp(proj_head).load_state_dict(ckpt["proj_head"])
         if "opt_g" in ckpt:
             opt_g.load_state_dict(ckpt["opt_g"])
-        if "opt_d" in ckpt:
-            opt_d.load_state_dict(ckpt["opt_d"])
+        if "scheduler" in ckpt:
+            scheduler.load_state_dict(ckpt["scheduler"])
         if "epoch" in ckpt:
             start_epoch = ckpt["epoch"] + 1
         if utils.is_main_process():
@@ -595,25 +563,25 @@ def main():
     # 설정 출력
     if utils.is_main_process():
         print("=" * 70)
-        print("FAAP Training 11th - Unified Fairness Framework")
+        print("FAAP Training 12th - Discriminator-Free Fixed Hyperparameters")
         print("=" * 70)
         print(f"Epsilon (fixed): {args.epsilon}")
-        print(f"Beta (detection): {args.beta}")
+        print(f"Beta (fixed): {args.beta}")
         print(f"Lambda contrast: {args.lambda_contrast}")
         print(f"Lambda align: {args.lambda_align}")
         print(f"Lambda var: {args.lambda_var}")
-        print(f"Lambda fair: {args.lambda_fair}")
+        print(f"Lambda focal: {args.lambda_focal}")
         print(f"Lambda W (Wasserstein): {args.lambda_w}")
-        print(f"Lambda Q (Quantile): {args.lambda_q}")
-        print(f"Fair F scale: {args.fair_f_scale}, Fair M scale: {args.fair_m_scale}")
+        print(f"Focal gamma: {args.focal_gamma}, alpha: {args.focal_alpha}")
         print(f"Temperature: {args.temperature}")
+        print(f"NO Discriminator - Pure Contrastive + Focal Learning!")
+        print(f"NO Schedule - All Hyperparameters Fixed!")
         print("=" * 70)
 
     # ===== 학습 루프 =====
     for epoch in range(start_epoch, args.epochs):
         metrics_logger = utils.MetricLogger(delimiter="  ")
         generator.train()
-        discriminator.train()
         proj_head.train()
         
         if args.distributed and hasattr(train_loader.sampler, "set_epoch"):
@@ -623,8 +591,7 @@ def main():
         current_eps = args.epsilon
         current_beta = args.beta
         _set_generator_epsilon(generator, current_eps)
-        current_lr_g = opt_g.param_groups[0]['lr']
-        current_lr_d = opt_d.param_groups[0]['lr']
+        current_lr = opt_g.param_groups[0]['lr']
 
         for samples, targets, genders in metrics_logger.log_every(train_loader, args.log_every, f"Epoch {epoch}"):
             samples = samples.to(device)
@@ -650,51 +617,13 @@ def main():
             align_loss = torch.tensor(0.0, device=device)
             var_loss = torch.tensor(0.0, device=device)
             wasserstein_loss = torch.tensor(0.0, device=device)
-            quantile_loss = torch.tensor(0.0, device=device)
-            d_loss = torch.tensor(0.0, device=device)
+            focal_loss = torch.tensor(0.0, device=device)
 
-            # ===== Discriminator 업데이트 (GD 7th 방식) =====
-            d_losses_list = []
-            for _ in range(args.k_d):
-                opt_d.zero_grad()
-                d_batch_losses = []
-                
-                if female_batch is not None:
-                    with torch.no_grad():
-                        female_perturbed_d = _apply_generator(generator, female_batch)
-                        _, feat_f_d = detr.forward_with_features(female_perturbed_d)
-                    logits_f = discriminator(feat_f_d.detach())
-                    labels_f = torch.ones(logits_f.size(0), device=device, dtype=torch.long)
-                    d_batch_losses.append(F.cross_entropy(logits_f, labels_f))
-                
-                if male_batch is not None:
-                    with torch.no_grad():
-                        male_perturbed_d = _apply_generator(generator, male_batch)
-                        _, feat_m_d = detr.forward_with_features(male_perturbed_d)
-                    logits_m = discriminator(feat_m_d.detach())
-                    labels_m = torch.zeros(logits_m.size(0), device=device, dtype=torch.long)
-                    d_batch_losses.append(F.cross_entropy(logits_m, labels_m))
-
-                if d_batch_losses:
-                    d_loss_step = torch.stack(d_batch_losses).mean()
-                    d_loss_step.backward()
-                    opt_d.step()
-                    d_losses_list.append(d_loss_step.item())
-            
-            d_loss = torch.tensor(sum(d_losses_list) / len(d_losses_list) if d_losses_list else 0.0, device=device)
-
-            # ===== Generator 업데이트 (Unified Framework) =====
+            # ===== Generator 업데이트 (Discriminator-Free!) =====
             if female_batch is not None or male_batch is not None:
                 opt_g.zero_grad()
                 
-                # Discriminator gradient 비활성화 (G 업데이트 시 D weights 수정 방지)
-                for p in discriminator.parameters():
-                    p.requires_grad = False
-                
-                # 손실들을 리스트로 수집 (inplace 연산 방지)
                 det_losses = []
-                fairness_f = torch.tensor(0.0, device=device)
-                fairness_m = torch.tensor(0.0, device=device)
                 feat_f, feat_m = None, None
                 proj_f, proj_m = None, None
                 female_scores = torch.tensor([], device=device)
@@ -705,12 +634,6 @@ def main():
                     female_perturbed = _apply_generator(generator, female_batch)
                     outputs_f, feat_f = detr.forward_with_features(female_perturbed)
                     proj_f = proj_head(feat_f)
-                    
-                    # Adversarial Fairness (GD 7th) - clone logits to avoid inplace issues
-                    logits_f = discriminator(feat_f).clone()
-                    ce_f = F.cross_entropy(logits_f, torch.ones(logits_f.size(0), device=device, dtype=torch.long))
-                    ent_f = _entropy_loss(logits_f)
-                    fairness_f = -(ce_f + args.alpha * ent_f)
                     
                     # Detection Loss (유효한 타겟만)
                     valid_f_idx = [i for i, t in enumerate(female_targets) if t["boxes"].numel() > 0]
@@ -730,12 +653,6 @@ def main():
                     outputs_m, feat_m = detr.forward_with_features(male_perturbed)
                     proj_m = proj_head(feat_m)
                     
-                    # Adversarial Fairness (GD 7th) - clone logits to avoid inplace issues
-                    logits_m = discriminator(feat_m).clone()
-                    ce_m = F.cross_entropy(logits_m, torch.zeros(logits_m.size(0), device=device, dtype=torch.long))
-                    ent_m = _entropy_loss(logits_m)
-                    fairness_m = -(ce_m + args.alpha * ent_m)
-                    
                     # Detection Loss (유효한 타겟만)
                     valid_m_idx = [i for i, t in enumerate(male_targets) if t["boxes"].numel() > 0]
                     valid_m_targets = [male_targets[i] for i in valid_m_idx]
@@ -751,7 +668,7 @@ def main():
                 # Detection Loss 합산
                 det_loss = torch.stack(det_losses).sum() if det_losses else torch.tensor(0.0, device=device)
                 
-                # ===== Contrastive Fairness Losses (Contrastive 1st 핵심) =====
+                # ===== Contrastive Fairness Losses (핵심) =====
                 if proj_f is not None and proj_m is not None:
                     # 1. Cross-Gender Contrastive Loss (AR Gap 감소에 핵심)
                     contrast_loss = _cross_gender_contrastive_loss(
@@ -763,26 +680,23 @@ def main():
                 
                 # ===== Distribution Alignment Losses =====
                 if female_scores.numel() > 0 and male_scores.numel() > 0:
-                    # 3. Wasserstein Loss (GD 7th - 단방향, AP Gap 감소에 핵심)
+                    # 3. Wasserstein Loss (단방향)
                     wasserstein_loss = _wasserstein_1d(female_scores, male_scores)
                     
-                    # 4. Quantile Matching Loss (GD 10th - 정밀 분포 정렬)
-                    quantile_loss = _quantile_matching_loss(
-                        female_scores, male_scores, args.num_quantiles
+                    # 4. Focal Score Alignment Loss (NEW - 어려운 샘플 집중)
+                    focal_loss = _focal_score_alignment_loss(
+                        female_scores, male_scores, 
+                        gamma=args.focal_gamma, alpha=args.focal_alpha
                     )
                 
-                # 비대칭 Fairness (GD 7th 핵심 - AP Gap 감소에 기여)
-                fairness_loss = args.fair_f_scale * fairness_f + args.fair_m_scale * fairness_m
-                
-                # ===== 최종 손실 (Unified) =====
+                # ===== 최종 손실 (Discriminator-Free, 모든 고정값) =====
                 total_g = (
                     current_beta * det_loss                       # Detection 보호
                     + args.lambda_contrast * contrast_loss        # Contrastive (AR Gap)
                     + args.lambda_align * align_loss              # Mean Alignment
                     + args.lambda_var * var_loss                  # Variance Alignment
-                    + args.lambda_fair * fairness_loss            # Adversarial Fairness
                     + args.lambda_w * wasserstein_loss            # Wasserstein (AP Gap)
-                    + args.lambda_q * quantile_loss               # Quantile (AP Gap 정밀)
+                    + args.lambda_focal * focal_loss              # Focal (어려운 샘플, 고정)
                 )
                 
                 # 메트릭 계산
@@ -817,38 +731,27 @@ def main():
                         obj_mean = max_scores.mean()
                         obj_frac = (max_scores > args.obj_conf_thresh).float().mean()
 
-                # Fairness loss 계산
-                fairness_loss = args.fair_f_scale * fairness_f + args.fair_m_scale * fairness_m
-                
                 total_g.backward()
                 if args.max_norm > 0:
                     torch.nn.utils.clip_grad_norm_(generator.parameters(), args.max_norm)
                     torch.nn.utils.clip_grad_norm_(proj_head.parameters(), args.max_norm)
                 opt_g.step()
-                
-                # Discriminator gradient 다시 활성화
-                for p in discriminator.parameters():
-                    p.requires_grad = True
             else:
                 det_loss = torch.tensor(0.0, device=device)
-                fairness_loss = torch.tensor(0.0, device=device)
                 total_g = torch.tensor(0.0, device=device)
 
-            # 메트릭 업데이트
+            # 메트릭 업데이트 (Discriminator 관련 항목 제거, focal_w 고정)
             metrics_logger.update(
-                d_loss=d_loss.item(),
                 g_contrast=contrast_loss.item(),
                 g_align=align_loss.item(),
                 g_var=var_loss.item(),
-                g_fair=fairness_loss.item(),
+                g_focal=focal_loss.item(),
                 g_w=wasserstein_loss.item(),
-                g_q=quantile_loss.item(),
                 g_det=det_loss.item(),
                 g_total=total_g.item(),
                 eps=current_eps,
                 beta=current_beta,
-                lr_g=current_lr_g,
-                lr_d=current_lr_d,
+                lr_g=current_lr,
                 delta_linf=delta_linf.item(),
                 delta_l2=delta_l2.item(),
                 obj_score=obj_mean.item(),
@@ -859,25 +762,25 @@ def main():
                 obj_frac_m=obj_frac_m.item(),
             )
 
+        # LR scheduler step
+        scheduler.step()
+        
         metrics_logger.synchronize_between_processes()
 
         # 에폭 종료 로깅 및 저장
         if utils.is_main_process():
             log_entry = {
                 "epoch": epoch,
-                "d_loss": metrics_logger.meters["d_loss"].global_avg,
                 "g_contrast": metrics_logger.meters["g_contrast"].global_avg,
                 "g_align": metrics_logger.meters["g_align"].global_avg,
                 "g_var": metrics_logger.meters["g_var"].global_avg,
-                "g_fair": metrics_logger.meters["g_fair"].global_avg,
+                "g_focal": metrics_logger.meters["g_focal"].global_avg,
                 "g_w": metrics_logger.meters["g_w"].global_avg,
-                "g_q": metrics_logger.meters["g_q"].global_avg,
                 "g_det": metrics_logger.meters["g_det"].global_avg,
                 "g_total": metrics_logger.meters["g_total"].global_avg,
                 "epsilon": current_eps,
                 "beta": current_beta,
-                "lr_g": current_lr_g,
-                "lr_d": current_lr_d,
+                "lr_g": current_lr,
                 "delta_linf": metrics_logger.meters["delta_linf"].global_avg,
                 "delta_l2": metrics_logger.meters["delta_l2"].global_avg,
                 "obj_score": metrics_logger.meters["obj_score"].global_avg,
@@ -896,10 +799,9 @@ def main():
                     {
                         "epoch": epoch,
                         "generator": _unwrap_ddp(generator).state_dict(),
-                        "discriminator": _unwrap_ddp(discriminator).state_dict(),
                         "proj_head": _unwrap_ddp(proj_head).state_dict(),
                         "opt_g": opt_g.state_dict(),
-                        "opt_d": opt_d.state_dict(),
+                        "scheduler": scheduler.state_dict(),
                         "args": vars(args),
                     },
                     ckpt_path_save,
