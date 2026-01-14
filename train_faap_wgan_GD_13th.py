@@ -136,7 +136,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--epochs", type=int, default=30)
-    parser.add_argument("--batch_size", type=int, default=8)  # Discriminator 없어 메모리 여유
+    parser.add_argument("--batch_size", type=int, default=6)  # Discriminator 없어 메모리 여유
     parser.add_argument("--num_workers", type=int, default=12)
     parser.add_argument("--lr_g", type=float, default=1e-4, help="generator learning rate")
     
