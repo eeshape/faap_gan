@@ -307,24 +307,17 @@ class GenderCocoDataset(CocoDetection):
 
 ### 9.1 단일 GPU 학습
 ```bash
-python -m faap_gan.train_faap_wgan_GD_7th \
-    --dataset_root /path/to/faap_dataset \
-    --epochs 24 \
-    --batch_size 4
+cd /home/dohyeong/Desktop/faap_gan && python train_faap_wgan_GD_7th.py
 ```
 
 ### 9.2 분산 학습 (Multi-GPU)
 ```bash
-torchrun --nproc_per_node=4 \
-    -m faap_gan.train_faap_wgan_GD_7th \
-    --distributed \
-    --dataset_root /path/to/faap_dataset
+cd /home/dohyeong/Desktop/faap_gan && torchrun --nproc_per_node=4 train_faap_wgan_GD_7th.py --distributed
 ```
 
 ### 9.3 체크포인트에서 재개
 ```bash
-python -m faap_gan.train_faap_wgan_GD_7th \
-    --resume faap_outputs/faap_outputs_gd_7th/checkpoints/epoch_0010.pth
+cd /home/dohyeong/Desktop/faap_gan && python train_faap_wgan_GD_7th.py --resume faap_outputs/faap_outputs_gd_7th/checkpoints/epoch_0010.pth
 ```
 
 ---
@@ -475,4 +468,69 @@ faap_outputs/faap_outputs_gd_7th/
 
 ---
 
+## 13. SimCLR InfoNCE 버전 (train_faap_simclr_infonce.py)
+
+### 13.1 개요
+GenderDiscriminator를 제거하고 **표준 InfoNCE contrastive loss**로 대체한 버전.
+
+### 13.2 핵심 변경사항 (7th 대비)
+- GenderDiscriminator 제거
+- D/G 번갈아 학습 → G만 학습
+- Adversarial loss → 표준 InfoNCE
+- SimCLR 스타일 data augmentation 추가
+
+### 13.3 InfoNCE Loss 구조
+```
+L_InfoNCE = -log(exp(sim(z_f, z_m)/τ) / [exp(sim(z_f, z_m)/τ) + Σ exp(sim(z_f, z_f')/τ)])
+
+- Positive: cross-gender (여성 ↔ 남성)
+- Negative: same-gender (여성 ↔ 여성, 남성 ↔ 남성)
+- 비대칭 가중치: F→M (1.5) > M→F (0.5)
+```
+
+### 13.4 SimCLR Data Augmentation
+| 강도 | ColorJitter | RandomGrayscale | 용도 |
+|------|-------------|-----------------|------|
+| none | - | - | baseline |
+| weak | (0.2, 0.2, 0.2, 0.05) | - | 안전한 시작점 |
+| medium | (0.3, 0.3, 0.3, 0.1) | - | **추천** |
+| strong | (0.4, 0.4, 0.4, 0.1) | p=0.2 | detection 성능 저하 위험 |
+
+### 13.5 학습 명령어
+```bash
+# 기본 실행 (medium augmentation)
+cd /home/dohyeong/Desktop/faap_gan && python train_faap_simclr_infonce.py
+
+# augmentation 강도별 실험
+cd /home/dohyeong/Desktop/faap_gan && python train_faap_simclr_infonce.py --aug_strength none
+cd /home/dohyeong/Desktop/faap_gan && python train_faap_simclr_infonce.py --aug_strength weak
+cd /home/dohyeong/Desktop/faap_gan && python train_faap_simclr_infonce.py --aug_strength medium
+cd /home/dohyeong/Desktop/faap_gan && python train_faap_simclr_infonce.py --aug_strength strong
+```
+
+### 13.6 기본 하이퍼파라미터
+| 파라미터 | 값 | 설명 |
+|----------|-----|------|
+| device | cuda | CUDA_VISIBLE_DEVICES 환경변수로 GPU 지정 |
+| batch_size | 4 | augmentation 포함 시 메모리 제약 |
+| num_workers | 6 | 최적 data loading |
+| epochs | 24 | 학습 에폭 |
+| temperature | 0.07 | InfoNCE temperature |
+| lambda_infonce | 1.0 | InfoNCE 손실 가중치 |
+| lambda_wass | 0.2 | Wasserstein 손실 가중치 |
+| aug_strength | medium | SimCLR augmentation 강도 |
+
+### 13.7 출력 경로
+```
+faap_outputs/faap_outputs_infonce/
+├── config.json
+├── dataset_layout.json
+├── train_log.jsonl
+└── checkpoints/
+    └── epoch_XXXX.pth
+```
+
+---
+
 *최종 업데이트: 7th.py 기준 (논문 제출 버전)*
+*SimCLR InfoNCE 버전 추가: train_faap_simclr_infonce.py*
