@@ -1,23 +1,23 @@
 """
-FAAP Training - Score-based Contrastive Learning
+FAAP Training - Adaptive Score-based Contrastive Learning (v2)
 =============================================================================
 
-핵심 아이디어: Detection Score 기반 Positive/Anchor 정의
+핵심 개선: Adaptive Percentile Split
 =============================================================================
 
-[기존 방식 (실패)]
-- Positive: cross-gender (여성 ↔ 남성)
-- Negative: same-gender
-- 문제: semantic 유사성 없음, 목표와 연결 안 됨
+[v1 문제점]
+- 고정 threshold (0.5) 사용
+- 실제 score가 대부분 0.9 이상 → Anchor 없음 → Loss 작동 안 함
 
-[제안 방식]
-- Positive: Detection score 높은 샘플 (고성능, 주로 남성)
-- Anchor: Detection score 낮은 샘플 (저성능, 주로 여성)
-- 효과: 저성능 feature → 고성능 feature 방향으로 이동
+[v2 해결책]
+- 배치 내 상대적 ranking 사용
+- 상위 K% = Positive, 하위 K% = Anchor
+- 항상 균형 있는 split 보장
 
-[Wasserstein과 차이]
-- Wasserstein: Score(1D) 분포 정렬 → 결과만 맞춤
-- Contrastive: Feature(256D) 정렬 → 원인 해결
+[추가 개선]
+- Contrastive loss warmup (처음엔 약하게, 점차 강하게)
+- Temperature 0.1 (더 안정적)
+- Margin 영역 (중간 샘플) 제외 옵션
 
 =============================================================================
 """
@@ -25,7 +25,7 @@ FAAP Training - Score-based Contrastive Learning
 import argparse
 import json
 from pathlib import Path
-from typing import List, Sequence
+from typing import List, Sequence, Tuple
 
 if __package__ is None or __package__ == "":
     import sys
@@ -51,129 +51,242 @@ from util.misc import NestedTensor
 
 
 # =============================================================================
-# Projection Head (SimCLR 스타일)
+# Projection Head
 # =============================================================================
 
 class ProjectionHead(nn.Module):
     """
-    Feature를 contrastive space로 매핑하는 2-layer MLP.
-    L2 normalize된 output 반환.
+    Feature를 contrastive space로 매핑하는 MLP.
+    SimCLR 논문에서 2-layer MLP가 효과적임을 입증.
     """
 
     def __init__(
         self,
         input_dim: int = 256,
-        hidden_dim: int = 256,
+        hidden_dim: int = 512,
         output_dim: int = 128,
     ):
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
+            nn.BatchNorm1d(hidden_dim),
             nn.ReLU(inplace=True),
             nn.Linear(hidden_dim, output_dim),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Args:
-            x: (batch, num_queries, feature_dim) or (batch, feature_dim)
-        Returns:
-            (batch, output_dim) L2-normalized projections
-        """
         if x.dim() == 3:
-            # (batch, num_queries, feature_dim) → (batch, feature_dim)
             x = x.mean(dim=1)
         proj = self.net(x)
         return F.normalize(proj, dim=-1, p=2)
 
 
 # =============================================================================
-# Score-based Contrastive Loss (핵심)
+# Adaptive Score-based Contrastive Loss (핵심 개선)
 # =============================================================================
 
-class ScoreBasedContrastiveLoss(nn.Module):
+class AdaptiveScoreContrastiveLoss(nn.Module):
     """
-    Detection Score 기반 Contrastive Loss.
+    Adaptive Percentile-based Contrastive Loss.
 
-    - Anchor: 저성능 샘플 (score < threshold)
-    - Positive: 고성능 샘플 (score > threshold)
-    - 저성능 feature를 고성능 feature 방향으로 당김
+    고정 threshold 대신 배치 내 상대적 ranking 사용:
+    - 상위 top_k_percent = Positive (고성능, 목표)
+    - 하위 bottom_k_percent = Anchor (저성능, 이동 대상)
+    - 중간 = 무시 (margin)
 
-    InfoNCE:
-    L = -log( exp(sim(anchor, positive)/τ) / Σ exp(sim(anchor, all)/τ) )
+    이점:
+    - 데이터 분포에 robust
+    - 항상 균형 있는 Positive/Anchor 보장
+    - Hard example mining 효과
     """
 
     def __init__(
         self,
-        temperature: float = 0.07,
-        score_threshold: float = 0.5,
+        temperature: float = 0.1,
+        top_k_percent: float = 0.4,
+        bottom_k_percent: float = 0.4,
+        min_samples: int = 2,
     ):
         super().__init__()
         self.temperature = temperature
-        self.score_threshold = score_threshold
+        self.top_k_percent = top_k_percent
+        self.bottom_k_percent = bottom_k_percent
+        self.min_samples = min_samples
 
     def forward(
         self,
         projections: torch.Tensor,
         scores: torch.Tensor,
-    ) -> torch.Tensor:
+    ) -> Tuple[torch.Tensor, dict]:
         """
         Args:
             projections: (N, D) L2-normalized projections
-            scores: (N,) detection scores for each sample
+            scores: (N,) detection scores
         Returns:
-            loss (scalar)
+            loss (scalar), info (dict)
         """
-        if projections.size(0) < 2:
-            return projections.new_tensor(0.0)
+        n = projections.size(0)
+        info = {"n_positive": 0, "n_anchor": 0, "score_gap": 0.0}
 
-        # 고성능/저성능 분리
-        high_mask = scores > self.score_threshold
-        low_mask = scores <= self.score_threshold
+        if n < self.min_samples * 2:
+            return projections.new_tensor(0.0), info
 
-        high_feats = projections[high_mask]  # Positive (목표)
-        low_feats = projections[low_mask]    # Anchor (이동 대상)
+        # =================================================================
+        # Adaptive Split: 배치 내 상대적 ranking
+        # =================================================================
+        sorted_indices = scores.argsort(descending=True)
 
-        n_high = high_feats.size(0)
-        n_low = low_feats.size(0)
+        n_top = max(self.min_samples, int(n * self.top_k_percent))
+        n_bottom = max(self.min_samples, int(n * self.bottom_k_percent))
 
-        # 둘 다 있어야 학습 가능
-        if n_high == 0 or n_low == 0:
-            return projections.new_tensor(0.0)
+        # 겹치지 않도록 조정
+        if n_top + n_bottom > n:
+            n_top = n // 2
+            n_bottom = n - n_top
+
+        top_indices = sorted_indices[:n_top]
+        bottom_indices = sorted_indices[-n_bottom:]
+
+        positive_feats = projections[top_indices]   # 고성능 = Positive
+        anchor_feats = projections[bottom_indices]  # 저성능 = Anchor
+
+        info["n_positive"] = n_top
+        info["n_anchor"] = n_bottom
+        info["score_gap"] = (scores[top_indices].mean() - scores[bottom_indices].mean()).item()
 
         # =================================================================
         # InfoNCE: Anchor → Positive 방향으로 당김
         # =================================================================
 
-        # Anchor와 Positive 간 similarity (가까워져야 함)
-        sim_anchor_to_pos = torch.mm(low_feats, high_feats.t()) / self.temperature
-        # (n_low, n_high)
+        # Anchor와 Positive 간 similarity
+        sim_anchor_to_pos = torch.mm(anchor_feats, positive_feats.t()) / self.temperature
+        # (n_anchor, n_positive)
 
-        # Anchor와 모든 샘플 간 similarity (분모용)
-        sim_anchor_to_all = torch.mm(low_feats, projections.t()) / self.temperature
-        # (n_low, N)
+        # Anchor와 전체 샘플 간 similarity (분모용)
+        sim_anchor_to_all = torch.mm(anchor_feats, projections.t()) / self.temperature
+        # (n_anchor, N)
 
-        # 자기 자신 제외 (Anchor끼리의 대각선)
-        # low_feats의 원래 index 찾기
-        low_indices = torch.where(low_mask)[0]
-        for i, idx in enumerate(low_indices):
+        # 자기 자신 제외
+        for i, idx in enumerate(bottom_indices):
             sim_anchor_to_all[i, idx] = float('-inf')
 
         # InfoNCE Loss
-        # 분자: anchor와 모든 positive의 similarity (logsumexp로 합침)
-        numerator = torch.logsumexp(sim_anchor_to_pos, dim=1)  # (n_low,)
+        # 분자: Anchor와 모든 Positive의 similarity
+        numerator = torch.logsumexp(sim_anchor_to_pos, dim=1)
 
-        # 분모: anchor와 모든 샘플의 similarity
-        denominator = torch.logsumexp(sim_anchor_to_all, dim=1)  # (n_low,)
+        # 분모: Anchor와 모든 샘플의 similarity
+        denominator = torch.logsumexp(sim_anchor_to_all, dim=1)
 
         # Loss: -log(positive / all)
         loss = -(numerator - denominator).mean()
 
-        return loss
+        return loss, info
 
 
 # =============================================================================
-# Score-Level Wasserstein Loss (기존 유지)
+# Bidirectional Score Contrastive Loss (양방향)
+# =============================================================================
+
+class BidirectionalScoreContrastiveLoss(nn.Module):
+    """
+    양방향 Contrastive Loss:
+    1. Anchor(저성능) → Positive(고성능) 방향
+    2. 고성능 내에서 더 tight한 cluster 형성
+
+    비대칭 가중치로 저성능 개선에 집중.
+    """
+
+    def __init__(
+        self,
+        temperature: float = 0.1,
+        top_k_percent: float = 0.4,
+        bottom_k_percent: float = 0.4,
+        anchor_weight: float = 1.0,
+        positive_weight: float = 0.3,
+        min_samples: int = 2,
+    ):
+        super().__init__()
+        self.temperature = temperature
+        self.top_k_percent = top_k_percent
+        self.bottom_k_percent = bottom_k_percent
+        self.anchor_weight = anchor_weight
+        self.positive_weight = positive_weight
+        self.min_samples = min_samples
+
+    def forward(
+        self,
+        projections: torch.Tensor,
+        scores: torch.Tensor,
+    ) -> Tuple[torch.Tensor, dict]:
+        n = projections.size(0)
+        info = {"n_positive": 0, "n_anchor": 0, "score_gap": 0.0, "loss_a2p": 0.0, "loss_p2p": 0.0}
+
+        if n < self.min_samples * 2:
+            return projections.new_tensor(0.0), info
+
+        # Adaptive Split
+        sorted_indices = scores.argsort(descending=True)
+
+        n_top = max(self.min_samples, int(n * self.top_k_percent))
+        n_bottom = max(self.min_samples, int(n * self.bottom_k_percent))
+
+        if n_top + n_bottom > n:
+            n_top = n // 2
+            n_bottom = n - n_top
+
+        top_indices = sorted_indices[:n_top]
+        bottom_indices = sorted_indices[-n_bottom:]
+
+        positive_feats = projections[top_indices]
+        anchor_feats = projections[bottom_indices]
+
+        info["n_positive"] = n_top
+        info["n_anchor"] = n_bottom
+        info["score_gap"] = (scores[top_indices].mean() - scores[bottom_indices].mean()).item()
+
+        # =================================================================
+        # Loss 1: Anchor → Positive (핵심)
+        # =================================================================
+        sim_a2p = torch.mm(anchor_feats, positive_feats.t()) / self.temperature
+        sim_a2all = torch.mm(anchor_feats, projections.t()) / self.temperature
+
+        for i, idx in enumerate(bottom_indices):
+            sim_a2all[i, idx] = float('-inf')
+
+        num_a2p = torch.logsumexp(sim_a2p, dim=1)
+        denom_a2p = torch.logsumexp(sim_a2all, dim=1)
+        loss_a2p = -(num_a2p - denom_a2p).mean()
+
+        # =================================================================
+        # Loss 2: Positive 내 clustering (보조)
+        # =================================================================
+        if n_top >= 2:
+            sim_p2p = torch.mm(positive_feats, positive_feats.t()) / self.temperature
+            # 대각선(자기 자신) 제외
+            mask_p = torch.eye(n_top, device=projections.device, dtype=torch.bool)
+            sim_p2p_masked = sim_p2p.masked_fill(mask_p, float('-inf'))
+
+            sim_p2all = torch.mm(positive_feats, projections.t()) / self.temperature
+            for i, idx in enumerate(top_indices):
+                sim_p2all[i, idx] = float('-inf')
+
+            num_p2p = torch.logsumexp(sim_p2p_masked, dim=1)
+            denom_p2p = torch.logsumexp(sim_p2all, dim=1)
+            loss_p2p = -(num_p2p - denom_p2p).mean()
+        else:
+            loss_p2p = projections.new_tensor(0.0)
+
+        info["loss_a2p"] = loss_a2p.item()
+        info["loss_p2p"] = loss_p2p.item()
+
+        # 비대칭 가중합
+        total_loss = self.anchor_weight * loss_a2p + self.positive_weight * loss_p2p
+
+        return total_loss, info
+
+
+# =============================================================================
+# Wasserstein Loss (기존 유지)
 # =============================================================================
 
 def _resize_sorted(scores: torch.Tensor, target_len: int) -> torch.Tensor:
@@ -194,42 +307,14 @@ def _wasserstein_1d_asymmetric(
     female_scores: torch.Tensor,
     male_scores: torch.Tensor,
 ) -> torch.Tensor:
-    """단방향 Wasserstein: 여성 score → 남성 score."""
     if female_scores.numel() == 0 or male_scores.numel() == 0:
         return female_scores.new_tensor(0.0)
-
     sorted_f = female_scores.sort().values
     sorted_m = male_scores.detach().sort().values
-
     k = max(sorted_f.numel(), sorted_m.numel())
     sorted_f = _resize_sorted(sorted_f, k)
     sorted_m = _resize_sorted(sorted_m, k)
-
     return F.relu(sorted_m - sorted_f).mean()
-
-
-def _matched_detection_scores(
-    detr: FrozenDETR,
-    outputs: dict,
-    targets: Sequence[dict],
-) -> torch.Tensor:
-    """Hungarian matching으로 GT와 매칭된 query의 detection score 추출"""
-    if len(targets) == 0:
-        return outputs["pred_logits"].new_zeros(0)
-
-    indices = detr.criterion.matcher(outputs, targets)
-    probs = outputs["pred_logits"].softmax(dim=-1)
-
-    matched_scores = []
-    for b, (src_idx, tgt_idx) in enumerate(indices):
-        if len(src_idx) == 0:
-            continue
-        tgt_labels = targets[b]["labels"][tgt_idx]
-        matched_scores.append(probs[b, src_idx, tgt_labels])
-
-    if matched_scores:
-        return torch.cat(matched_scores, dim=0)
-    return outputs["pred_logits"].new_zeros(0)
 
 
 def _get_image_level_scores(
@@ -237,10 +322,7 @@ def _get_image_level_scores(
     outputs: dict,
     targets: Sequence[dict],
 ) -> torch.Tensor:
-    """
-    이미지 단위 detection score 계산.
-    각 이미지의 매칭된 detection score 평균 반환.
-    """
+    """이미지 단위 detection score (매칭된 detection의 평균)"""
     if len(targets) == 0:
         return outputs["pred_logits"].new_zeros(0)
 
@@ -250,7 +332,6 @@ def _get_image_level_scores(
     image_scores = []
     for b, (src_idx, tgt_idx) in enumerate(indices):
         if len(src_idx) == 0:
-            # 매칭된 object가 없으면 0
             image_scores.append(torch.tensor(0.0, device=probs.device))
         else:
             tgt_labels = targets[b]["labels"][tgt_idx]
@@ -278,7 +359,7 @@ def _default_output_dir(script_path: Path) -> str:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        "FAAP Score-based Contrastive Learning",
+        "FAAP Adaptive Score-based Contrastive Learning (v2)",
         add_help=True,
     )
 
@@ -291,7 +372,7 @@ def parse_args() -> argparse.Namespace:
     # Training basics
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--epochs", type=int, default=30)
-    parser.add_argument("--batch_size", type=int, default=8)
+    parser.add_argument("--batch_size", type=int, default=7)
     parser.add_argument("--num_workers", type=int, default=6)
     parser.add_argument("--lr_g", type=float, default=1e-4)
     parser.add_argument("--seed", type=int, default=42)
@@ -307,33 +388,34 @@ def parse_args() -> argparse.Namespace:
     # =================================================================
     # Loss weights
     # =================================================================
-    parser.add_argument("--lambda_contrastive", type=float, default=1.0,
-                        help="Score-based contrastive loss weight")
-    parser.add_argument("--lambda_wass", type=float, default=0.2,
-                        help="Wasserstein loss weight (score-level)")
-    parser.add_argument("--beta", type=float, default=0.5,
-                        help="Detection loss weight start")
-    parser.add_argument("--beta_final", type=float, default=0.6,
-                        help="Detection loss weight final")
+    parser.add_argument("--lambda_contrastive", type=float, default=1.0)
+    parser.add_argument("--lambda_wass", type=float, default=0.2)
+    parser.add_argument("--beta", type=float, default=0.5)
+    parser.add_argument("--beta_final", type=float, default=0.6)
 
     # =================================================================
-    # Contrastive settings
+    # Contrastive settings (v2 개선)
     # =================================================================
-    parser.add_argument("--temperature", type=float, default=0.07,
-                        help="Temperature for InfoNCE")
-    parser.add_argument("--score_threshold", type=float, default=0.5,
-                        help="Threshold to split high/low score samples")
+    parser.add_argument("--temperature", type=float, default=0.1,
+                        help="InfoNCE temperature (0.1 for stability)")
+    parser.add_argument("--top_k_percent", type=float, default=0.4,
+                        help="상위 K%를 Positive로 (배치 내 상대적)")
+    parser.add_argument("--bottom_k_percent", type=float, default=0.4,
+                        help="하위 K%를 Anchor로 (배치 내 상대적)")
+    parser.add_argument("--contrastive_warmup_epochs", type=int, default=3,
+                        help="Contrastive loss warmup epochs")
+    parser.add_argument("--bidirectional", action="store_true",
+                        help="양방향 contrastive loss 사용")
 
     # Projection head
-    parser.add_argument("--proj_dim", type=int, default=128,
-                        help="Projection output dimension")
+    parser.add_argument("--proj_hidden_dim", type=int, default=512)
+    parser.add_argument("--proj_output_dim", type=int, default=128)
 
     # Other
     parser.add_argument("--max_norm", type=float, default=0.1)
     parser.add_argument("--log_every", type=int, default=10)
     parser.add_argument("--save_every", type=int, default=1)
     parser.add_argument("--max_train_per_gender", type=int, default=0)
-    parser.add_argument("--obj_conf_thresh", type=float, default=0.5)
     parser.add_argument("--resume", type=str, default="")
     parser.add_argument("--distributed", action="store_true")
     parser.add_argument("--world_size", default=1, type=int)
@@ -342,14 +424,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dist_url", default="env://")
 
     return parser.parse_args()
-
-
-def _split_nested(samples: NestedTensor, targets: Sequence[dict], keep: List[int]):
-    if len(keep) == 0:
-        return None, []
-    tensor = samples.tensors[keep]
-    mask = samples.mask[keep] if samples.mask is not None else None
-    return NestedTensor(tensor, mask), [targets[i] for i in keep]
 
 
 def _apply_generator(generator: nn.Module, samples: NestedTensor) -> NestedTensor:
@@ -377,18 +451,14 @@ def _scheduled_epsilon(
     eps_min: float,
 ) -> float:
     warmup_end = max(0, warmup_epochs - 1) if warmup_epochs > 1 else 0
-
     if epoch <= warmup_end:
         progress = min(epoch / max(1, warmup_epochs - 1), 1.0)
         return eps_start + (eps_peak - eps_start) * progress
-
     hold_end = warmup_end + max(0, hold_epochs)
     if epoch <= hold_end:
         return eps_peak
-
     if cooldown_epochs <= 0:
         return eps_peak
-
     progress = (epoch - hold_end) / max(1, cooldown_epochs)
     if progress >= 1.0:
         return eps_min
@@ -400,6 +470,15 @@ def _scheduled_beta(epoch: int, total_epochs: int, beta_start: float, beta_final
         return beta_start
     progress = min(epoch / max(1, total_epochs - 1), 1.0)
     return beta_start + (beta_final - beta_start) * progress
+
+
+def _contrastive_warmup_weight(epoch: int, warmup_epochs: int) -> float:
+    """Contrastive loss warmup: 0 → 1"""
+    if warmup_epochs <= 0:
+        return 1.0
+    if epoch >= warmup_epochs:
+        return 1.0
+    return epoch / warmup_epochs
 
 
 # =============================================================================
@@ -451,14 +530,16 @@ def main():
             json.dump(dataset_info, f, indent=2)
 
         print("=" * 70)
-        print("Score-based Contrastive Learning")
+        print("Adaptive Score-based Contrastive Learning (v2)")
         print("=" * 70)
-        print(f"핵심: Detection Score 기반 Positive/Anchor 분리")
-        print(f"  - Positive: score > {args.score_threshold} (고성능)")
-        print(f"  - Anchor: score <= {args.score_threshold} (저성능)")
+        print(f"핵심 개선: 고정 threshold → 배치 내 상대적 ranking")
+        print(f"  - Positive: 상위 {args.top_k_percent*100:.0f}% (고성능)")
+        print(f"  - Anchor: 하위 {args.bottom_k_percent*100:.0f}% (저성능)")
+        print(f"  - 중간 {(1-args.top_k_percent-args.bottom_k_percent)*100:.0f}%: margin (무시)")
         print(f"Temperature: {args.temperature}")
+        print(f"Contrastive warmup: {args.contrastive_warmup_epochs} epochs")
+        print(f"Bidirectional: {args.bidirectional}")
         print(f"Loss weights: Contrastive={args.lambda_contrastive}, Wass={args.lambda_wass}")
-        print(f"Beta: {args.beta} → {args.beta_final}")
         print("=" * 70)
 
     # ==========================================================================
@@ -468,18 +549,25 @@ def main():
     detr = FrozenDETR(checkpoint_path=ckpt_path, device=str(device), detr_repo=detr_repo)
     generator = PerturbationGenerator(epsilon=args.epsilon).to(device)
 
-    # Projection Head
     proj_head = ProjectionHead(
         input_dim=detr.hidden_dim,
-        hidden_dim=detr.hidden_dim,
-        output_dim=args.proj_dim,
+        hidden_dim=args.proj_hidden_dim,
+        output_dim=args.proj_output_dim,
     ).to(device)
 
-    # Score-based Contrastive Loss
-    contrastive_loss_fn = ScoreBasedContrastiveLoss(
-        temperature=args.temperature,
-        score_threshold=args.score_threshold,
-    ).to(device)
+    # Contrastive Loss 선택
+    if args.bidirectional:
+        contrastive_loss_fn = BidirectionalScoreContrastiveLoss(
+            temperature=args.temperature,
+            top_k_percent=args.top_k_percent,
+            bottom_k_percent=args.bottom_k_percent,
+        ).to(device)
+    else:
+        contrastive_loss_fn = AdaptiveScoreContrastiveLoss(
+            temperature=args.temperature,
+            top_k_percent=args.top_k_percent,
+            bottom_k_percent=args.bottom_k_percent,
+        ).to(device)
 
     if args.distributed:
         generator = DDP(generator, device_ids=[args.gpu] if args.gpu is not None else None)
@@ -544,6 +632,7 @@ def main():
             args.epsilon_min,
         )
         current_beta = _scheduled_beta(epoch, args.epochs, args.beta, args.beta_final)
+        contrastive_weight = _contrastive_warmup_weight(epoch, args.contrastive_warmup_epochs)
         _set_generator_epsilon(generator, current_eps)
 
         for samples, targets, genders in metrics_logger.log_every(
@@ -553,56 +642,49 @@ def main():
             targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
             genders = [g.lower() for g in genders]
 
-            # Gender indices (for Wasserstein loss)
             female_idx = [i for i, g in enumerate(genders) if g == "female"]
             male_idx = [i for i, g in enumerate(genders) if g == "male"]
-
-            # Initialize metrics
-            loss_contrastive = torch.tensor(0.0, device=device)
-            loss_wasserstein = torch.tensor(0.0, device=device)
-            loss_det = torch.tensor(0.0, device=device)
-            total_g = torch.tensor(0.0, device=device)
 
             # =================================================================
             # Forward Pass
             # =================================================================
             opt_g.zero_grad()
 
-            # Apply perturbation
             perturbed = _apply_generator(generator, samples)
-
-            # DETR forward
             outputs, features = detr.forward_with_features(perturbed)
 
             # =================================================================
-            # 1. Image-level Detection Scores
+            # Image-level Detection Scores
             # =================================================================
             image_scores = _get_image_level_scores(detr, outputs, targets)
 
             # =================================================================
-            # 2. Score-based Contrastive Loss (핵심)
+            # Adaptive Score-based Contrastive Loss (핵심)
             # =================================================================
-            projections = proj_head(features)  # (batch, proj_dim)
-            loss_contrastive = contrastive_loss_fn(projections, image_scores)
+            projections = proj_head(features)
+            loss_contrastive, contrastive_info = contrastive_loss_fn(projections, image_scores)
 
             # =================================================================
-            # 3. Wasserstein Loss (성별 기반, 기존 유지)
+            # Wasserstein Loss (성별 기반, 보조)
             # =================================================================
+            loss_wasserstein = torch.tensor(0.0, device=device)
             if len(female_idx) > 0 and len(male_idx) > 0:
                 female_scores = image_scores[female_idx]
                 male_scores = image_scores[male_idx]
                 loss_wasserstein = _wasserstein_1d_asymmetric(female_scores, male_scores)
 
             # =================================================================
-            # 4. Detection Loss
+            # Detection Loss
             # =================================================================
             loss_det, _ = detr.detection_loss(outputs, targets)
 
             # =================================================================
-            # Total Loss
+            # Total Loss (with contrastive warmup)
             # =================================================================
+            effective_lambda_contrastive = args.lambda_contrastive * contrastive_weight
+
             total_g = (
-                args.lambda_contrastive * loss_contrastive
+                effective_lambda_contrastive * loss_contrastive
                 + args.lambda_wass * loss_wasserstein
                 + current_beta * loss_det
             )
@@ -615,13 +697,10 @@ def main():
                 delta_linf = delta.abs().amax(dim=(1, 2, 3)).mean()
                 delta_l2 = delta.flatten(1).norm(p=2, dim=1).mean()
 
-                # Score statistics
-                n_high = (image_scores > args.score_threshold).sum().item()
-                n_low = (image_scores <= args.score_threshold).sum().item()
                 score_mean = image_scores.mean()
-                score_std = image_scores.std() if image_scores.numel() > 1 else torch.tensor(0.0)
+                score_min = image_scores.min()
+                score_max = image_scores.max()
 
-                # Gender-wise scores
                 if len(female_idx) > 0:
                     score_f = image_scores[female_idx].mean()
                 else:
@@ -650,12 +729,15 @@ def main():
                 total_g=total_g.item(),
                 eps=current_eps,
                 beta=current_beta,
+                c_weight=contrastive_weight,
                 delta_linf=delta_linf.item(),
                 delta_l2=delta_l2.item(),
-                n_high=n_high,
-                n_low=n_low,
+                n_pos=contrastive_info["n_positive"],
+                n_anc=contrastive_info["n_anchor"],
+                score_gap=contrastive_info["score_gap"],
                 score_mean=score_mean.item(),
-                score_std=score_std.item(),
+                score_min=score_min.item(),
+                score_max=score_max.item(),
                 score_f=score_f.item(),
                 score_m=score_m.item(),
             )
@@ -674,12 +756,15 @@ def main():
                 "total_g": metrics_logger.meters["total_g"].global_avg,
                 "epsilon": current_eps,
                 "beta": current_beta,
+                "contrastive_weight": contrastive_weight,
                 "delta_linf": metrics_logger.meters["delta_linf"].global_avg,
                 "delta_l2": metrics_logger.meters["delta_l2"].global_avg,
-                "n_high": metrics_logger.meters["n_high"].global_avg,
-                "n_low": metrics_logger.meters["n_low"].global_avg,
+                "n_positive": metrics_logger.meters["n_pos"].global_avg,
+                "n_anchor": metrics_logger.meters["n_anc"].global_avg,
+                "score_gap_within_batch": metrics_logger.meters["score_gap"].global_avg,
                 "score_mean": metrics_logger.meters["score_mean"].global_avg,
-                "score_std": metrics_logger.meters["score_std"].global_avg,
+                "score_min": metrics_logger.meters["score_min"].global_avg,
+                "score_max": metrics_logger.meters["score_max"].global_avg,
                 "score_f": metrics_logger.meters["score_f"].global_avg,
                 "score_m": metrics_logger.meters["score_m"].global_avg,
             }
@@ -687,19 +772,18 @@ def main():
             with log_path.open("a") as f:
                 f.write(json.dumps(log_entry) + "\n")
 
-            # Print summary
-            score_gap = log_entry["score_m"] - log_entry["score_f"]
+            gender_gap = log_entry["score_m"] - log_entry["score_f"]
             print(f"\n[Epoch {epoch}] Summary:")
-            print(f"  Contrastive Loss: {log_entry['loss_contrastive']:.4f} (핵심)")
+            print(f"  Contrastive Loss: {log_entry['loss_contrastive']:.4f} (weight: {contrastive_weight:.2f})")
             print(f"  Wasserstein Loss: {log_entry['loss_wasserstein']:.4f}")
             print(f"  Detection Loss: {log_entry['loss_det']:.4f}")
             print(f"  Total: {log_entry['total_g']:.4f}")
-            print(f"  High/Low score samples: {log_entry['n_high']:.1f} / {log_entry['n_low']:.1f}")
+            print(f"  Positive/Anchor: {log_entry['n_positive']:.1f} / {log_entry['n_anchor']:.1f}")
+            print(f"  Score within batch gap: {log_entry['score_gap_within_batch']:.4f}")
             print(f"  Score (F/M): {log_entry['score_f']:.4f} / {log_entry['score_m']:.4f}")
-            print(f"  Score Gap (M-F): {score_gap:.4f}")
+            print(f"  Gender Score Gap (M-F): {gender_gap:.4f}")
             print(f"  Epsilon: {current_eps:.4f}, Beta: {current_beta:.4f}")
 
-            # Save checkpoint
             if (epoch + 1) % args.save_every == 0:
                 ckpt_path_save = output_dir / "checkpoints" / f"epoch_{epoch:04d}.pth"
                 torch.save(
@@ -722,17 +806,14 @@ def main():
     # =========================================================================
     if utils.is_main_process():
         print("\n" + "=" * 70)
-        print("Score-based Contrastive Learning Complete!")
+        print("Adaptive Score-based Contrastive Learning Complete!")
         print("=" * 70)
         print(f"Output: {output_dir}")
-        print("\n기존 방식 대비 변경:")
-        print("  - Cross-gender positive → Score-based positive")
-        print("  - 성별 기준 → Detection score 기준")
-        print("  - 목표와 직접 연결")
-        print("\n핵심 메커니즘:")
-        print(f"  - Positive: score > {args.score_threshold} (고성능)")
-        print(f"  - Anchor: score <= {args.score_threshold} (저성능)")
-        print("  - Anchor를 Positive 방향으로 당김")
+        print("\nv2 핵심 개선:")
+        print(f"  - 고정 threshold → 배치 내 상대적 ranking")
+        print(f"  - Positive: 상위 {args.top_k_percent*100:.0f}%")
+        print(f"  - Anchor: 하위 {args.bottom_k_percent*100:.0f}%")
+        print(f"  - Contrastive warmup: {args.contrastive_warmup_epochs} epochs")
         print("\n성공 기준:")
         print("  - AP Gap < 0.09 (15% 개선)")
         print("  - Female AP > 0.41")
