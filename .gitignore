@@ -6,3 +6,7 @@ faap_outputs/*
 faap_outputs_w/generated_images/
 .DS_Store
 .vscode/
+
+# Monitor scripts (contain webhook URLs)
+monitor*.sh
+monitor*.log
