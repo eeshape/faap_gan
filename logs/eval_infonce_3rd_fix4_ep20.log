@@ -1,0 +1,153 @@
+/home/dohyeong/anaconda3/envs/detr/lib/python3.11/site-packages/torchvision/models/_utils.py:208: UserWarning: The parameter 'pretrained' is deprecated since 0.13 and may be removed in the future, please use 'weights' instead.
+  warnings.warn(
+/home/dohyeong/anaconda3/envs/detr/lib/python3.11/site-packages/torchvision/models/_utils.py:223: UserWarning: Arguments other than a weight enum or `None` for 'weights' are deprecated since 0.13 and may be removed in the future. The current behavior is equivalent to passing `weights=ResNet50_Weights.IMAGENET1K_V1`. You can also use `weights=ResNet50_Weights.DEFAULT` to get the most up-to-date weights.
+  warnings.warn(msg)
+/home/dohyeong/Desktop/faap_gan/models.py:68: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  state_dict = torch.load(str(ckpt_path), map_location=self.device)
+/home/dohyeong/Desktop/faap_gan/eval_faap.py:292: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
+  state = torch.load(args.generator_checkpoint, map_location=device)
+loading annotations into memory...
+Done (t=0.03s)
+creating index...
+index created!
+loading annotations into memory...
+Done (t=0.08s)
+creating index...
+index created!
+=== Evaluating perturbed (male) split=test ===
+eval  [  0/457]  eta: 0:26:18    time: 3.4533  data: 2.0366  max mem: 10008
+eval  [ 20/457]  eta: 0:05:20    time: 0.5979  data: 0.0465  max mem: 11795
+eval  [ 40/457]  eta: 0:04:45    time: 0.6315  data: 0.0486  max mem: 11795
+eval  [ 60/457]  eta: 0:04:17    time: 0.5771  data: 0.0477  max mem: 11795
+eval  [ 80/457]  eta: 0:04:00    time: 0.6088  data: 0.0488  max mem: 11795
+eval  [100/457]  eta: 0:03:45    time: 0.5991  data: 0.0486  max mem: 11795
+eval  [120/457]  eta: 0:03:31    time: 0.6183  data: 0.0486  max mem: 11795
+eval  [140/457]  eta: 0:03:17    time: 0.5947  data: 0.0479  max mem: 11795
+eval  [160/457]  eta: 0:03:04    time: 0.6045  data: 0.0498  max mem: 11795
+eval  [180/457]  eta: 0:02:51    time: 0.6014  data: 0.0495  max mem: 11795
+eval  [200/457]  eta: 0:02:39    time: 0.6376  data: 0.0528  max mem: 11795
+eval  [220/457]  eta: 0:02:26    time: 0.6096  data: 0.0503  max mem: 11795
+eval  [240/457]  eta: 0:02:14    time: 0.6177  data: 0.0505  max mem: 11795
+eval  [260/457]  eta: 0:02:02    time: 0.6466  data: 0.0518  max mem: 11795
+eval  [280/457]  eta: 0:01:50    time: 0.6191  data: 0.0512  max mem: 11795
+eval  [300/457]  eta: 0:01:37    time: 0.6317  data: 0.0514  max mem: 11795
+eval  [320/457]  eta: 0:01:25    time: 0.6378  data: 0.0520  max mem: 11795
+eval  [340/457]  eta: 0:01:12    time: 0.6172  data: 0.0505  max mem: 11795
+eval  [360/457]  eta: 0:01:00    time: 0.6191  data: 0.0518  max mem: 11795
+eval  [380/457]  eta: 0:00:47    time: 0.5806  data: 0.0476  max mem: 11795
+eval  [400/457]  eta: 0:00:35    time: 0.6546  data: 0.0527  max mem: 11795
+eval  [420/457]  eta: 0:00:23    time: 0.6275  data: 0.0514  max mem: 11795
+eval  [440/457]  eta: 0:00:10    time: 0.6197  data: 0.0499  max mem: 11795
+eval  [456/457]  eta: 0:00:00    time: 0.6084  data: 0.0502  max mem: 11795
+eval Total time: 0:04:44 (0.6219 s / it)
+Accumulating evaluation results...
+DONE (t=1.43s).
+IoU metric: bbox
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.519
+ Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.634
+ Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.573
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.077
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.055
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.532
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.454
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.808
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.838
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.200
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.469
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.846
+=== Evaluating perturbed (female) split=test ===
+eval  [  0/164]  eta: 0:05:25    time: 1.9837  data: 1.3744  max mem: 11795
+eval  [ 20/164]  eta: 0:01:40    time: 0.6320  data: 0.0520  max mem: 11795
+eval  [ 40/164]  eta: 0:01:20    time: 0.5978  data: 0.0503  max mem: 11795
+eval  [ 60/164]  eta: 0:01:06    time: 0.6266  data: 0.0550  max mem: 11795
+eval  [ 80/164]  eta: 0:00:53    time: 0.6219  data: 0.0528  max mem: 11795
+eval  [100/164]  eta: 0:00:40    time: 0.6312  data: 0.0551  max mem: 11795
+eval  [120/164]  eta: 0:00:27    time: 0.6276  data: 0.0548  max mem: 11795
+eval  [140/164]  eta: 0:00:15    time: 0.6062  data: 0.0521  max mem: 11795
+eval  [160/164]  eta: 0:00:02    time: 0.6242  data: 0.0514  max mem: 11795
+eval  [163/164]  eta: 0:00:00    time: 0.6050  data: 0.0513  max mem: 11795
+eval Total time: 0:01:42 (0.6274 s / it)
+Accumulating evaluation results...
+DONE (t=0.38s).
+IoU metric: bbox
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.413
+ Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.517
+ Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.459
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.019
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.086
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.423
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.453
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.804
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.834
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.150
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.497
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.840
+=== Evaluating baseline (male) split=test ===
+eval  [  0/457]  eta: 0:15:45    time: 2.0680  data: 1.7314  max mem: 11795
+eval  [ 20/457]  eta: 0:03:17    time: 0.3712  data: 0.0516  max mem: 11795
+eval  [ 40/457]  eta: 0:02:53    time: 0.3764  data: 0.0537  max mem: 11795
+eval  [ 60/457]  eta: 0:02:36    time: 0.3537  data: 0.0517  max mem: 11795
+eval  [ 80/457]  eta: 0:02:26    time: 0.3686  data: 0.0514  max mem: 11795
+eval  [100/457]  eta: 0:02:16    time: 0.3594  data: 0.0539  max mem: 11795
+eval  [120/457]  eta: 0:02:08    time: 0.3731  data: 0.0527  max mem: 11795
+eval  [140/457]  eta: 0:02:00    time: 0.3631  data: 0.0510  max mem: 11795
+eval  [160/457]  eta: 0:01:51    time: 0.3610  data: 0.0538  max mem: 11795
+eval  [180/457]  eta: 0:01:43    time: 0.3672  data: 0.0535  max mem: 11795
+eval  [200/457]  eta: 0:01:36    time: 0.3840  data: 0.0536  max mem: 11795
+eval  [220/457]  eta: 0:01:28    time: 0.3622  data: 0.0527  max mem: 11795
+eval  [240/457]  eta: 0:01:21    time: 0.3789  data: 0.0545  max mem: 11795
+eval  [260/457]  eta: 0:01:14    time: 0.3810  data: 0.0566  max mem: 11795
+eval  [280/457]  eta: 0:01:06    time: 0.3805  data: 0.0568  max mem: 11795
+eval  [300/457]  eta: 0:00:59    time: 0.3777  data: 0.0535  max mem: 11795
+eval  [320/457]  eta: 0:00:51    time: 0.3820  data: 0.0565  max mem: 11795
+eval  [340/457]  eta: 0:00:44    time: 0.3787  data: 0.0561  max mem: 11795
+eval  [360/457]  eta: 0:00:36    time: 0.3727  data: 0.0559  max mem: 11795
+eval  [380/457]  eta: 0:00:28    time: 0.3576  data: 0.0516  max mem: 11795
+eval  [400/457]  eta: 0:00:21    time: 0.3896  data: 0.0588  max mem: 11795
+eval  [420/457]  eta: 0:00:13    time: 0.3730  data: 0.0555  max mem: 11795
+eval  [440/457]  eta: 0:00:06    time: 0.3751  data: 0.0550  max mem: 11795
+eval  [456/457]  eta: 0:00:00    time: 0.3589  data: 0.0547  max mem: 11795
+eval Total time: 0:02:51 (0.3754 s / it)
+Accumulating evaluation results...
+DONE (t=1.59s).
+IoU metric: bbox
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.511
+ Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.628
+ Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.565
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.068
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.063
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.525
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.450
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.803
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.834
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.180
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.453
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.843
+=== Evaluating baseline (female) split=test ===
+eval  [  0/164]  eta: 0:05:21    time: 1.9618  data: 1.6412  max mem: 11795
+eval  [ 20/164]  eta: 0:01:04    time: 0.3712  data: 0.0533  max mem: 11795
+eval  [ 40/164]  eta: 0:00:50    time: 0.3683  data: 0.0533  max mem: 11795
+eval  [ 60/164]  eta: 0:00:41    time: 0.3760  data: 0.0542  max mem: 11795
+eval  [ 80/164]  eta: 0:00:32    time: 0.3712  data: 0.0559  max mem: 11795
+eval  [100/164]  eta: 0:00:24    time: 0.3853  data: 0.0586  max mem: 11795
+eval  [120/164]  eta: 0:00:17    time: 0.3801  data: 0.0530  max mem: 11795
+eval  [140/164]  eta: 0:00:09    time: 0.3621  data: 0.0506  max mem: 11795
+eval  [160/164]  eta: 0:00:01    time: 0.3623  data: 0.0482  max mem: 11795
+eval  [163/164]  eta: 0:00:00    time: 0.3527  data: 0.0491  max mem: 11795
+eval Total time: 0:01:02 (0.3810 s / it)
+Accumulating evaluation results...
+DONE (t=0.37s).
+IoU metric: bbox
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.404
+ Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.510
+ Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.452
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.017
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.091
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.415
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.448
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.795
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.826
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.150
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.479
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.832
+Saved metrics to faap_outputs/faap_outputs_infonce_3rd_fix4/test_metrics_infonce_3rd_fix4_epoch_0020.json

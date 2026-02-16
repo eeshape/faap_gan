@@ -10,3 +10,4 @@ faap_outputs_w/generated_images/
 # Monitor scripts (contain webhook URLs)
 monitor*.sh
 monitor*.log
+.omc/
