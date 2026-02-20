@@ -1,65 +1,48 @@
 """
-FAAP Training - Stabilized Gender-Aware Contrastive Learning (4th Version)
+FAAP Training - Clamped Adaptive Contrastive Learning (6th Version)
 
 =============================================================================
-3rd 버전 성공/실패 분석 기반 설계:
+5th 실패 원인 분석:
 =============================================================================
-
-[3rd 성공 요소 → 유지]
-- Gender-Aware 구조: Anchor=Female, Positive=Male, Negative=Other Females
-- 비대칭 학습: F→M 방향이 핵심
-- 최고 AP Gap 달성 (-1.8%, epoch 3)
-
-[3rd 실패 요소 → 제거/수정]
-1. Epoch 3 이후 과적합 → Male Detach + 정규화로 해결
-2. Score Gap Reversal → Adaptive Weighting 완전 제거
-3. M→F 방향 (0.5) → Male AP 하락 → 완전 제거
+- Adaptive Weighting 제거 → 초기 epoch에서 3rd 대비 Female AP 개선 약화
+  (3rd ep3: Female 0.413 vs 5th ep3: Female 0.406)
+- M→F 완전 제거(ep9+) → AP Gap 즉시 악화 (0.1054→0.1126)
+- M→F 감쇠가 아닌 적절한 고정값(0.2)이 필요
 
 =============================================================================
-4th 핵심 개선 (3개 버전 장점 결합):
+전 버전 교훈 정리:
 =============================================================================
-
-[3rd에서 채택]
-- Gender-Aware InfoNCE: F→M contrastive loss
-- Wasserstein score alignment (보조)
-
-[fix2에서 채택]
-- Male Detach: proj_m.detach() → Female만 학습, Male representation 보호
-  → 3rd의 과적합 원인인 양방향 gradient 제거
-  → fix2는 epoch 29까지 안정적이었음
-
-[1st에서 채택]
-- LayerNorm in ProjectionHead → 더 안정적인 feature normalization
-- Feature Mean Alignment Loss → 직접적인 분포 중심 정렬
-
-[새로운 개선]
-1. Adaptive Weighting 완전 제거 (Score Gap Reversal 근본 해결)
-2. M→F 방향 완전 제거 (Male AP 보호)
-3. Dropout(0.1) in ProjectionHead → 과적합 방지
-4. Temperature 0.07 → 0.1 (안정적인 gradient)
-5. Epsilon Schedule (0.05→0.10→0.09) → 점진적 학습
-6. Contrastive Warmup (3 epochs) → 초기 안정화
-7. Augmentation "medium" → "weak" (detection 성능 보호)
-8. Gradient clipping 0.1 → 0.5 (유연한 학습)
-9. Cosine LR Schedule + Warmup
+3rd: Adaptive Weighting이 초기(ep0-3)에 강력한 Female 개선 → ep3 이후 Score Gap Reversal로 붕괴
+4th: Male Detach + Triple Warmup → 초기 신호 4%로 억제, AP Gap 개선 미미
+5th: Adaptive 제거 → 초기 약화, M→F 완전 제거 시 악화 확인, best w_m2f=0.2
 
 =============================================================================
-설계 근거 (기존 MoCo 4th 대비):
+6th 핵심 아이디어: 3rd의 Power + Score Gap Reversal 원천 차단
 =============================================================================
-MoCo의 Memory Bank/Momentum Centroid는 3rd의 핵심 문제를 직접 해결하지 않음.
-3rd의 실패는 "batch size가 작아서"가 아니라:
-  - Male gradient가 M→F 방향으로 흘러 Male AP 하락
-  - Adaptive Weighting이 Score Gap Reversal로 역효과
-  - ProjectionHead 정규화 부재로 과적합
-이 세 가지를 직접 해결하는 것이 더 효과적.
 
-기대: 3rd의 AP Gap 개선력 (-1.8%) + fix2의 안정성 (29 epochs)
+[3rd에서 유지]
+  1. 양방향 F→M (1.5x) + M→F (0.2x 고정)
+  2. Male Detach 없음
+  3. Temperature 0.07
+  4. Epsilon 0.10 고정
+  5. LR 1e-4 고정
+  6. Medium augmentation
+  7. ProjectionHead 정규화 없음
+
+[3rd에서 수정 (수술적 변경)]
+  1. Clamped Adaptive Weighting
+     - 3rd: weights ∈ [0.5, 1.5] → Reversal시 약화 (0.8 등)
+     - 6th: weights ∈ [1.0, 1.5] → Reversal시 균일(1.0), 정상시 증폭(>1.0)
+     → Score Gap Reversal 원천 차단, 유용한 증폭은 보존
+  2. M→F 고정 0.2 (3rd: 0.5, 5th: 0.5→0.0)
+     - 5th 실험에서 w_m2f=0.2(ep7)이 best 확인
+     - 0.5는 Male AP 간섭, 0.0은 Male AP 과잉 상승
+
 =============================================================================
 """
 
 import argparse
 import json
-import math
 from pathlib import Path
 from typing import Tuple
 
@@ -89,17 +72,11 @@ from util.misc import NestedTensor
 
 
 # =============================================================================
-# SimCLR-Style Data Augmentation (3rd와 동일 구조, 기본값 "weak")
+# SimCLR-Style Data Augmentation (3rd와 동일)
 # =============================================================================
 
 class SimCLRAugmentation(nn.Module):
-    """
-    3rd는 "medium" 사용 → 4th는 "weak"로 약화.
-    이유: perturbation 자체가 augmentation 역할을 하므로,
-    추가 augmentation이 너무 강하면 detection feature를 왜곡.
-    """
-
-    def __init__(self, strength: str = "weak"):
+    def __init__(self, strength: str = "medium"):
         super().__init__()
         self.strength = strength
 
@@ -128,69 +105,53 @@ class SimCLRAugmentation(nn.Module):
 
 
 # =============================================================================
-# Stabilized Projection Head (1st의 LayerNorm + 신규 Dropout)
+# SimCLR Projection Head (3rd와 동일 - 정규화 없음)
 # =============================================================================
 
-class StabilizedProjectionHead(nn.Module):
-    """
-    3rd/fix2의 SimCLRProjectionHead를 정규화 강화 버전으로 교체.
-
-    변경점:
-    - LayerNorm 추가 (1st 버전에서 검증): 입력 feature scale 정규화
-    - Dropout 추가 (신규): 과적합 방지
-
-    3rd의 epoch 3 과적합 원인 중 하나는 ProjectionHead가
-    training distribution에 과적합된 것. LayerNorm은 feature scale
-    차이를 안정화하고, Dropout은 co-adaptation을 방지함.
-    """
-
-    def __init__(self, input_dim: int = 256, hidden_dim: int = 256,
-                 output_dim: int = 128, dropout: float = 0.1):
+class SimCLRProjectionHead(nn.Module):
+    def __init__(self, input_dim: int = 256, hidden_dim: int = 256, output_dim: int = 128):
         super().__init__()
         self.net = nn.Sequential(
-            nn.LayerNorm(input_dim),
             nn.Linear(input_dim, hidden_dim),
             nn.ReLU(inplace=True),
-            nn.Dropout(dropout),
             nn.Linear(hidden_dim, output_dim),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        pooled = x.mean(dim=1)  # (batch, num_queries, D) → (batch, D)
+        pooled = x.mean(dim=1)
         proj = self.net(pooled)
         return F.normalize(proj, dim=-1, p=2)
 
 
 # =============================================================================
-# Detach InfoNCE Loss (핵심: 3rd 장점 + fix2 안정성 + 문제 제거)
+# Clamped Adaptive Contrastive Loss (6th: 핵심 변경)
 # =============================================================================
 
-class DetachInfoNCELoss(nn.Module):
+class ClampedAdaptiveLoss(nn.Module):
     """
-    Male-Detached Gender-Aware InfoNCE Loss.
+    3rd의 Adaptive Weighting + Score Gap Reversal 원천 차단
 
-    3rd 대비 3가지 핵심 변경:
+    3rd 대비 변경:
+    - 3rd: weights = 0.5 + sigmoid(score_diff * 5)  → [0.5, 1.5]
+      - 정상: >1.0 (증폭) ← OK
+      - Reversal: <1.0 (약화) ← 문제!
+    - 6th: weights = 1.0 + relu(sigmoid(score_diff * 5) - 0.5)  → [1.0, 1.5]
+      - 정상: >1.0 (증폭) ← 동일
+      - Reversal: =1.0 (균일) ← 해결!
 
-    1. Male Detach (fix2에서 검증):
-       - proj_m.detach() → contrastive loss의 gradient가 Male로 흐르지 않음
-       - Female projection만 Male 방향으로 이동
-       - fix2는 이 방식으로 epoch 29까지 안정적이었음
-
-    2. Adaptive Weighting 제거:
-       - 3rd의 `w = 0.5 + sigmoid((score_m - score_f) * 5)` 제거
-       - Score Gap Reversal 문제: 학습 중 score_m < score_f 발생
-       → weight < 1.0 → 필요한 쌍의 학습이 오히려 약해짐
-       - 단순 균일 가중치가 더 안정적
-
-    3. M→F 방향 제거:
-       - 3rd: 1.5 * F→M + 0.5 * M→F
-       - 4th: F→M only
-       - M→F는 Male feature를 Female 방향으로 끌어 Male AP 하락 기여
+    M→F는 0.2로 고정 (5th ep7 best에서 검증).
     """
 
-    def __init__(self, temperature: float = 0.1):
+    def __init__(
+        self,
+        temperature: float = 0.07,
+        score_weight_alpha: float = 1.0,
+        w_m2f: float = 0.2,
+    ):
         super().__init__()
         self.temperature = temperature
+        self.score_weight_alpha = score_weight_alpha
+        self.w_m2f = w_m2f
 
     def forward(
         self,
@@ -205,76 +166,84 @@ class DetachInfoNCELoss(nn.Module):
         if n_f < 2 or n_m < 1:
             return proj_f.new_tensor(0.0), {
                 "n_f": n_f, "n_m": n_m, "score_gap": 0.0,
-                "sim_f2m_mean": 0.0, "sim_f2f_mean": 0.0,
+                "sim_f2m": 0.0, "sim_f2f": 0.0, "avg_weight": 1.0,
             }
 
-        # Male Detach: gradient가 Male projection으로 흐르지 않음
-        proj_m_detached = proj_m.detach()
+        scores_f = scores_f.detach()
+        scores_m = scores_m.detach()
 
-        # F→M similarity (positive pairs)
-        sim_f2m = torch.mm(proj_f, proj_m_detached.t()) / self.temperature  # (N_f, N_m)
-
-        # F→F similarity (negative pairs)
+        # =================================================================
+        # 1. F→M Contrastive + Clamped Adaptive Weighting
+        # =================================================================
+        sim_f2m = torch.mm(proj_f, proj_m.t()) / self.temperature  # (N_f, N_m)
         sim_f2f = torch.mm(proj_f, proj_f.t()) / self.temperature  # (N_f, N_f)
+
         mask_self = torch.eye(n_f, device=proj_f.device, dtype=torch.bool)
         sim_f2f_masked = sim_f2f.masked_fill(mask_self, float('-inf'))
 
-        # InfoNCE: all males are positive, other females are negative
-        all_sims = torch.cat([sim_f2m, sim_f2f_masked], dim=1)
-        numerator = torch.logsumexp(sim_f2m, dim=1)
+        # Clamped Adaptive Weighting (6th 핵심)
+        # score_diff > 0: score_m > score_f (정상) → weight > 1.0 (증폭)
+        # score_diff < 0: score_f > score_m (역전) → weight = 1.0 (균일, 약화 방지)
+        score_diff = scores_m.unsqueeze(0) - scores_f.unsqueeze(1)  # (N_f, N_m)
+        raw_weights = torch.sigmoid(score_diff * 5)  # [0, 1]
+        clamped_weights = 1.0 + F.relu(raw_weights - 0.5)  # [1.0, 1.5]
+
+        sim_f2m_weighted = sim_f2m + self.score_weight_alpha * torch.log(clamped_weights + 1e-8)
+
+        # InfoNCE
+        all_sims = torch.cat([sim_f2m_weighted, sim_f2f_masked], dim=1)
+        numerator = torch.logsumexp(sim_f2m_weighted, dim=1)
         denominator = torch.logsumexp(all_sims, dim=1)
-        loss = -(numerator - denominator).mean()
+        loss_f2m = -(numerator - denominator).mean()
 
-        # Monitoring metrics (no grad)
+        # =================================================================
+        # 2. M→F Contrastive (고정 0.2)
+        # =================================================================
+        loss_m2f = proj_f.new_tensor(0.0)
+        if self.w_m2f > 0 and n_m >= 2:
+            sim_m2f = sim_f2m.t()  # (N_m, N_f) - unweighted
+            sim_m2m = torch.mm(proj_m, proj_m.t()) / self.temperature
+            mask_m = torch.eye(n_m, device=proj_m.device, dtype=torch.bool)
+            sim_m2m_masked = sim_m2m.masked_fill(mask_m, float('-inf'))
+
+            all_sims_m = torch.cat([sim_m2f, sim_m2m_masked], dim=1)
+            numerator_m = torch.logsumexp(sim_m2f, dim=1)
+            denominator_m = torch.logsumexp(all_sims_m, dim=1)
+            loss_m2f = -(numerator_m - denominator_m).mean()
+
+        # F→M (1.5) + M→F (0.2)
+        loss = 1.5 * loss_f2m + self.w_m2f * loss_m2f
+
+        # Monitoring
         with torch.no_grad():
-            sim_f2m_raw = torch.mm(proj_f, proj_m_detached.t())
-            sim_f2m_mean = sim_f2m_raw.mean().item()
-            sim_f2f_raw = torch.mm(proj_f, proj_f.t())
-            sim_f2f_mean = sim_f2f_raw[~mask_self].mean().item() if n_f > 1 else 0.0
+            cos_f2m = torch.mm(proj_f, proj_m.t()).mean().item()
+            cos_f2f_vals = torch.mm(proj_f, proj_f.t())
+            cos_f2f_vals = cos_f2f_vals.masked_fill(mask_self, 0.0)
+            cos_f2f_mean = cos_f2f_vals.sum().item() / max(n_f * (n_f - 1), 1)
+            avg_weight = clamped_weights.mean().item()
 
+        score_gap = (scores_m.mean() - scores_f.mean()).item()
         info = {
             "n_f": n_f,
             "n_m": n_m,
-            "score_f_mean": scores_f.detach().mean().item(),
-            "score_m_mean": scores_m.detach().mean().item(),
-            "score_gap": (scores_m.detach().mean() - scores_f.detach().mean()).item(),
-            "sim_f2m_mean": sim_f2m_mean,
-            "sim_f2f_mean": sim_f2f_mean,
+            "score_f_mean": scores_f.mean().item(),
+            "score_m_mean": scores_m.mean().item(),
+            "score_gap": score_gap,
+            "loss_f2m": loss_f2m.item(),
+            "loss_m2f": loss_m2f.item() if isinstance(loss_m2f, torch.Tensor) else 0.0,
+            "sim_f2m": cos_f2m,
+            "sim_f2f": cos_f2f_mean,
+            "avg_weight": avg_weight,
         }
 
         return loss, info
 
 
 # =============================================================================
-# Feature Mean Alignment (1st 버전에서 채택)
-# =============================================================================
-
-def _feature_mean_alignment(features_f: torch.Tensor, features_m: torch.Tensor) -> torch.Tensor:
-    """
-    Female feature 분포 중심을 Male 방향으로 이동 (1st에서 검증).
-
-    Contrastive loss는 projection space에서 작용하고,
-    이 loss는 원본 DETR feature space에서 작용하여 상호 보완적.
-    Male 측은 detach하여 Female만 이동.
-    """
-    if features_f.size(0) == 0 or features_m.size(0) == 0:
-        return features_f.new_tensor(0.0)
-
-    pooled_f = features_f.mean(dim=1)             # (N_f, D)
-    pooled_m = features_m.mean(dim=1).detach()     # (N_m, D) - Male gradient 차단
-
-    mean_f = pooled_f.mean(dim=0)   # (D,)
-    mean_m = pooled_m.mean(dim=0)   # (D,)
-
-    return F.mse_loss(mean_f, mean_m)
-
-
-# =============================================================================
-# Utility Functions
+# Utility Functions (3rd와 동일)
 # =============================================================================
 
 def _image_level_detection_score(outputs: dict, top_k: int = 10) -> torch.Tensor:
-    """DETR logits에서 이미지 단위 score 계산"""
     probs = outputs["pred_logits"].softmax(dim=-1)[..., :-1]
     max_probs = probs.max(dim=-1).values
     if top_k > 0 and top_k < max_probs.size(1):
@@ -284,7 +253,6 @@ def _image_level_detection_score(outputs: dict, top_k: int = 10) -> torch.Tensor
 
 
 def _wasserstein_1d_asymmetric(female_scores: torch.Tensor, male_scores: torch.Tensor) -> torch.Tensor:
-    """단방향 Wasserstein: Female score를 Male 수준으로 끌어올림"""
     if female_scores.numel() == 0 or male_scores.numel() == 0:
         return female_scores.new_tensor(0.0)
     sorted_f = female_scores.sort().values
@@ -306,65 +274,6 @@ def _wasserstein_1d_asymmetric(female_scores: torch.Tensor, male_scores: torch.T
     return F.relu(sorted_m - sorted_f).mean()
 
 
-# =============================================================================
-# Schedule Functions
-# =============================================================================
-
-def _epsilon_schedule(
-    epoch: int, total_epochs: int,
-    eps_start: float = 0.05, eps_peak: float = 0.10, eps_final: float = 0.09,
-    warmup_epochs: int = 6, hold_epochs: int = 6,
-) -> float:
-    """
-    3단계 Epsilon Schedule (WGAN 7th에서 검증).
-    Warmup → Hold → Cooldown.
-    """
-    cooldown_start = warmup_epochs + hold_epochs
-    if epoch < warmup_epochs:
-        progress = epoch / max(1, warmup_epochs)
-        return eps_start + (eps_peak - eps_start) * progress
-    elif epoch < cooldown_start:
-        return eps_peak
-    else:
-        remaining = total_epochs - cooldown_start
-        if remaining <= 0:
-            return eps_final
-        progress = min((epoch - cooldown_start) / remaining, 1.0)
-        return eps_peak + (eps_final - eps_peak) * progress
-
-
-def _contrastive_warmup(epoch: int, warmup_epochs: int = 3) -> float:
-    """Contrastive loss 가중치를 서서히 증가 (초기 안정화)."""
-    if epoch < warmup_epochs:
-        return (epoch + 1) / (warmup_epochs + 1)
-    return 1.0
-
-
-def _scheduled_beta(epoch: int, total_epochs: int, beta_start: float, beta_final: float) -> float:
-    """Detection loss weight linear schedule"""
-    if total_epochs <= 1:
-        return beta_start
-    progress = min(epoch / max(1, total_epochs - 1), 1.0)
-    return beta_start + (beta_final - beta_start) * progress
-
-
-def _cosine_lr(optimizer: torch.optim.Optimizer, epoch: int, total_epochs: int,
-               lr_base: float, lr_min: float = 1e-6, warmup_epochs: int = 2) -> float:
-    """Cosine LR schedule with linear warmup."""
-    if epoch < warmup_epochs:
-        lr = lr_base * (epoch + 1) / (warmup_epochs + 1)
-    else:
-        progress = (epoch - warmup_epochs) / max(1, total_epochs - warmup_epochs)
-        lr = lr_min + 0.5 * (lr_base - lr_min) * (1 + math.cos(math.pi * progress))
-    for pg in optimizer.param_groups:
-        pg["lr"] = lr
-    return lr
-
-
-# =============================================================================
-# Other Utilities
-# =============================================================================
-
 def _default_output_dir(script_path: Path) -> str:
     stem = script_path.stem
     for prefix in ("train_faap_simclr_", "train_faap_", "train_"):
@@ -385,8 +294,14 @@ def _unwrap_ddp(module: nn.Module) -> nn.Module:
     return module.module if isinstance(module, DDP) else module
 
 
-def _set_generator_epsilon(generator: nn.Module, epsilon: float) -> None:
-    _unwrap_ddp(generator).epsilon = epsilon
+def _scheduled_beta(
+    epoch: int, total_epochs: int,
+    beta_start: float, beta_final: float,
+) -> float:
+    if total_epochs <= 1:
+        return beta_start
+    progress = min(epoch / max(1, total_epochs - 1), 1.0)
+    return beta_start + (beta_final - beta_start) * progress
 
 
 # =============================================================================
@@ -395,7 +310,7 @@ def _set_generator_epsilon(generator: nn.Module, epsilon: float) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        "FAAP Stabilized Gender-Aware Contrastive (4th Version)"
+        "FAAP Clamped Adaptive Contrastive (6th Version)"
     )
 
     # Paths
@@ -404,48 +319,38 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--detr_checkpoint", type=str, default=str(default_detr_checkpoint()))
     parser.add_argument("--output_dir", type=str, default=_default_output_dir(Path(__file__)))
 
-    # Training
+    # Training (3rd와 동일)
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--epochs", type=int, default=24)
-    parser.add_argument("--batch_size", type=int, default=8)
+    parser.add_argument("--batch_size", type=int, default=6)
     parser.add_argument("--num_workers", type=int, default=6)
     parser.add_argument("--lr_g", type=float, default=1e-4)
-    parser.add_argument("--lr_min", type=float, default=1e-6)
-    parser.add_argument("--lr_warmup_epochs", type=int, default=2)
     parser.add_argument("--seed", type=int, default=42)
 
-    # Perturbation (epsilon schedule)
-    parser.add_argument("--epsilon_start", type=float, default=0.05)
-    parser.add_argument("--epsilon_peak", type=float, default=0.10)
-    parser.add_argument("--epsilon_final", type=float, default=0.09)
-    parser.add_argument("--epsilon_warmup_epochs", type=int, default=6)
-    parser.add_argument("--epsilon_hold_epochs", type=int, default=6)
+    # Perturbation (고정)
+    parser.add_argument("--epsilon", type=float, default=0.10)
 
-    # Loss weights
+    # Loss weights (3rd와 동일)
     parser.add_argument("--lambda_contrastive", type=float, default=1.0)
-    parser.add_argument("--lambda_align", type=float, default=0.3,
-                        help="Feature mean alignment weight (1st에서 채택)")
     parser.add_argument("--lambda_wass", type=float, default=0.2)
     parser.add_argument("--beta", type=float, default=0.5)
     parser.add_argument("--beta_final", type=float, default=0.6)
 
     # Contrastive settings
-    parser.add_argument("--temperature", type=float, default=0.1,
-                        help="3rd의 0.07보다 높여 gradient 안정화")
-    parser.add_argument("--contrastive_warmup_epochs", type=int, default=3)
+    parser.add_argument("--temperature", type=float, default=0.07)
+    parser.add_argument("--score_weight_alpha", type=float, default=1.0,
+                        help="Clamped adaptive weighting 강도")
+    parser.add_argument("--w_m2f", type=float, default=0.2,
+                        help="M→F 고정 가중치 (5th ep7 best에서 검증)")
     parser.add_argument("--score_top_k", type=int, default=10)
-
-    # Projection Head
     parser.add_argument("--proj_dim", type=int, default=128)
-    parser.add_argument("--proj_dropout", type=float, default=0.1)
 
-    # Augmentation
-    parser.add_argument("--aug_strength", type=str, default="weak",
+    # Augmentation (3rd와 동일: medium)
+    parser.add_argument("--aug_strength", type=str, default="medium",
                         choices=["none", "weak", "medium", "strong"])
 
-    # Other
-    parser.add_argument("--max_norm", type=float, default=0.5,
-                        help="3rd의 0.1보다 유연하게")
+    # Other (3rd와 동일)
+    parser.add_argument("--max_norm", type=float, default=0.1)
     parser.add_argument("--log_every", type=int, default=10)
     parser.add_argument("--save_every", type=int, default=1)
     parser.add_argument("--resume", type=str, default="")
@@ -469,6 +374,7 @@ def main():
     if not hasattr(args, "gpu"):
         args.gpu = None
 
+    # Setup
     detr_repo = ensure_detr_repo_on_path(Path(args.detr_repo))
     ckpt_path = Path(args.detr_checkpoint)
     if not ckpt_path.is_absolute():
@@ -488,6 +394,7 @@ def main():
     args.world_size = utils.get_world_size()
     args.rank = utils.get_rank()
 
+    # Output directory
     output_dir = Path(args.output_dir)
     if utils.is_main_process():
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -504,47 +411,47 @@ def main():
             json.dump(dataset_info, f, indent=2)
 
         print("=" * 70)
-        print("Stabilized Gender-Aware Contrastive Learning (4th Version)")
+        print("Clamped Adaptive Contrastive Learning (6th Version)")
         print("=" * 70)
         print()
-        print("[3rd 대비 핵심 변경]")
-        print("  1. Male Detach (fix2) → Female만 학습, 과적합 방지")
-        print("  2. Adaptive Weighting 제거 → Score Gap Reversal 해결")
-        print("  3. M→F 방향 제거 → Male AP 보호")
-        print("  4. LayerNorm + Dropout(0.1) → ProjectionHead 정규화")
-        print("  5. Temperature 0.07→0.1 → gradient 안정화")
-        print("  6. Epsilon Schedule (0.05→0.10→0.09)")
-        print("  7. Feature Mean Alignment (1st) → 분포 중심 정렬")
-        print("  8. Cosine LR Schedule + Warmup")
-        print("  9. Augmentation medium→weak → detection 보호")
+        print("[5th 교훈]")
+        print("  - Adaptive Weighting 제거 → 초기 Female 개선 약화")
+        print("  - M→F=0 → AP Gap 즉시 악화, M→F=0.2 → best")
+        print()
+        print("[6th = 3rd의 Adaptive Power + Score Gap Reversal 차단]")
+        print("  1. Clamped Adaptive: [0.5,1.5] → [1.0,1.5]")
+        print("     - Reversal시 약화 방지 (weight >= 1.0)")
+        print("     - 정상시 증폭 유지 (weight > 1.0)")
+        print("  2. M→F 고정 0.2 (5th ep7 best에서 검증)")
         print("-" * 70)
         print(f"Temperature: {args.temperature}")
-        print(f"Epsilon: {args.epsilon_start} → {args.epsilon_peak} → {args.epsilon_final}")
-        print(f"Contrastive warmup: {args.contrastive_warmup_epochs} epochs")
-        print(f"LR: {args.lr_g} (cosine → {args.lr_min})")
-        print(f"Projection dropout: {args.proj_dropout}")
+        print(f"Epsilon: {args.epsilon} (fixed)")
+        print(f"F→M: 1.5 (with Clamped Adaptive Weighting)")
+        print(f"M→F: {args.w_m2f} (fixed)")
+        print(f"Score weight alpha: {args.score_weight_alpha}")
+        print(f"LR: {args.lr_g} (fixed)")
         print(f"Augmentation: {args.aug_strength}")
         print(f"Gradient clip: {args.max_norm}")
-        print(f"Loss: C={args.lambda_contrastive}, A={args.lambda_align}, "
-              f"W={args.lambda_wass}, D={args.beta}→{args.beta_final}")
+        print(f"Loss: C=1.0, W=0.2, D=0.5→0.6")
         print("=" * 70)
 
-    # ==========================================================================
+    # ======================================================================
     # Model Initialization
-    # ==========================================================================
+    # ======================================================================
 
     detr = FrozenDETR(checkpoint_path=ckpt_path, device=str(device), detr_repo=detr_repo)
-    generator = PerturbationGenerator(epsilon=args.epsilon_start).to(device)
+    generator = PerturbationGenerator(epsilon=args.epsilon).to(device)
 
-    proj_head = StabilizedProjectionHead(
+    proj_head = SimCLRProjectionHead(
         input_dim=detr.hidden_dim,
         hidden_dim=detr.hidden_dim,
         output_dim=args.proj_dim,
-        dropout=args.proj_dropout,
     ).to(device)
 
-    contrastive_loss_fn = DetachInfoNCELoss(
+    contrastive_loss_fn = ClampedAdaptiveLoss(
         temperature=args.temperature,
+        score_weight_alpha=args.score_weight_alpha,
+        w_m2f=args.w_m2f,
     ).to(device)
 
     simclr_aug = SimCLRAugmentation(strength=args.aug_strength).to(device)
@@ -586,9 +493,9 @@ def main():
 
     log_path = output_dir / "train_log.jsonl"
 
-    # ==========================================================================
+    # ======================================================================
     # Training Loop
-    # ==========================================================================
+    # ======================================================================
 
     for epoch in range(start_epoch, args.epochs):
         metrics_logger = utils.MetricLogger(delimiter="  ")
@@ -598,19 +505,10 @@ def main():
         if args.distributed and hasattr(train_loader.sampler, "set_epoch"):
             train_loader.sampler.set_epoch(epoch)
 
-        # --- Schedules ---
-        current_eps = _epsilon_schedule(
-            epoch, args.epochs,
-            args.epsilon_start, args.epsilon_peak, args.epsilon_final,
-            args.epsilon_warmup_epochs, args.epsilon_hold_epochs,
-        )
-        _set_generator_epsilon(generator, current_eps)
-
         current_beta = _scheduled_beta(epoch, args.epochs, args.beta, args.beta_final)
-        contrastive_weight = _contrastive_warmup(epoch, args.contrastive_warmup_epochs)
-        current_lr = _cosine_lr(
-            opt_g, epoch, args.epochs, args.lr_g, args.lr_min, args.lr_warmup_epochs
-        )
+
+        if utils.is_main_process():
+            print(f"\n--- Epoch {epoch} | beta={current_beta:.3f} ---")
 
         for samples, targets, genders in metrics_logger.log_every(
             train_loader, args.log_every, f"Epoch {epoch}"
@@ -619,6 +517,7 @@ def main():
             targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
             genders = [g.lower() for g in genders]
 
+            # Gender split
             female_idx = [i for i, g in enumerate(genders) if g == "female"]
             male_idx = [i for i, g in enumerate(genders) if g == "male"]
 
@@ -641,7 +540,7 @@ def main():
             outputs, features = detr.forward_with_features(perturbed)
 
             # =================================================================
-            # 1. Detach InfoNCE Contrastive Loss (핵심)
+            # 1. Clamped Adaptive Contrastive Loss
             # =================================================================
             image_scores = _image_level_detection_score(outputs, top_k=args.score_top_k)
 
@@ -652,23 +551,16 @@ def main():
             scores_m = image_scores[male_idx]
 
             loss_contrastive, contrastive_info = contrastive_loss_fn(
-                proj_f, proj_m, scores_f, scores_m
+                proj_f, proj_m, scores_f, scores_m,
             )
 
             # =================================================================
-            # 2. Feature Mean Alignment (1st에서 채택)
-            # =================================================================
-            features_f = features[female_idx]
-            features_m = features[male_idx]
-            loss_align = _feature_mean_alignment(features_f, features_m)
-
-            # =================================================================
-            # 3. Score-Level Wasserstein (보조)
+            # 2. Wasserstein Loss (3rd와 동일)
             # =================================================================
             loss_wasserstein = _wasserstein_1d_asymmetric(scores_f, scores_m)
 
             # =================================================================
-            # 4. Detection Loss
+            # 3. Detection Loss (3rd와 동일)
             # =================================================================
             loss_det, _ = detr.detection_loss(outputs, targets)
 
@@ -676,8 +568,7 @@ def main():
             # Total Loss
             # =================================================================
             total_g = (
-                args.lambda_contrastive * contrastive_weight * loss_contrastive
-                + args.lambda_align * loss_align
+                args.lambda_contrastive * loss_contrastive
                 + args.lambda_wass * loss_wasserstein
                 + current_beta * loss_det
             )
@@ -701,23 +592,21 @@ def main():
                 )
             opt_g.step()
 
+            # Log
             metrics_logger.update(
                 loss_contrastive=loss_contrastive.item(),
-                loss_align=loss_align.item(),
                 loss_wasserstein=loss_wasserstein.item(),
                 loss_det=loss_det.item(),
                 total_g=total_g.item(),
-                c_weight=contrastive_weight,
-                epsilon=current_eps,
                 beta=current_beta,
-                lr=current_lr,
                 delta_linf=delta_linf.item(),
                 delta_l2=delta_l2.item(),
                 score_f=contrastive_info.get("score_f_mean", 0.0),
                 score_m=contrastive_info.get("score_m_mean", 0.0),
                 score_gap=contrastive_info.get("score_gap", 0.0),
-                sim_f2m=contrastive_info.get("sim_f2m_mean", 0.0),
-                sim_f2f=contrastive_info.get("sim_f2f_mean", 0.0),
+                sim_f2m=contrastive_info.get("sim_f2m", 0.0),
+                sim_f2f=contrastive_info.get("sim_f2f", 0.0),
+                avg_weight=contrastive_info.get("avg_weight", 1.0),
                 n_f=contrastive_info.get("n_f", 0),
                 n_m=contrastive_info.get("n_m", 0),
             )
@@ -731,14 +620,10 @@ def main():
             log_entry = {
                 "epoch": epoch,
                 "loss_contrastive": metrics_logger.meters["loss_contrastive"].global_avg,
-                "loss_align": metrics_logger.meters["loss_align"].global_avg,
                 "loss_wasserstein": metrics_logger.meters["loss_wasserstein"].global_avg,
                 "loss_det": metrics_logger.meters["loss_det"].global_avg,
                 "total_g": metrics_logger.meters["total_g"].global_avg,
-                "contrastive_weight": contrastive_weight,
-                "epsilon": current_eps,
                 "beta": current_beta,
-                "lr": current_lr,
                 "delta_linf": metrics_logger.meters["delta_linf"].global_avg,
                 "delta_l2": metrics_logger.meters["delta_l2"].global_avg,
                 "score_f": metrics_logger.meters["score_f"].global_avg,
@@ -746,6 +631,7 @@ def main():
                 "score_gap": metrics_logger.meters["score_gap"].global_avg,
                 "sim_f2m": metrics_logger.meters["sim_f2m"].global_avg,
                 "sim_f2f": metrics_logger.meters["sim_f2f"].global_avg,
+                "avg_weight": metrics_logger.meters["avg_weight"].global_avg,
                 "n_f_avg": metrics_logger.meters["n_f"].global_avg,
                 "n_m_avg": metrics_logger.meters["n_m"].global_avg,
             }
@@ -754,17 +640,20 @@ def main():
                 f.write(json.dumps(log_entry) + "\n")
 
             print(f"\n[Epoch {epoch}] Summary:")
-            print(f"  Contrastive: {log_entry['loss_contrastive']:.4f}"
-                  f" (weight: {contrastive_weight:.2f})")
-            print(f"  Align: {log_entry['loss_align']:.6f}")
+            print(f"  Contrastive: {log_entry['loss_contrastive']:.4f} "
+                  f"(F→M: {contrastive_info.get('loss_f2m', 0):.4f}, "
+                  f"M→F: {contrastive_info.get('loss_m2f', 0):.4f})")
             print(f"  Wasserstein: {log_entry['loss_wasserstein']:.4f}")
             print(f"  Detection: {log_entry['loss_det']:.4f}")
             print(f"  Total: {log_entry['total_g']:.4f}")
-            print(f"  Score (F/M): {log_entry['score_f']:.4f} / {log_entry['score_m']:.4f}"
-                  f"  Gap: {log_entry['score_gap']:.4f}")
-            print(f"  Sim F→M: {log_entry['sim_f2m']:.4f}  |  F→F: {log_entry['sim_f2f']:.4f}")
-            print(f"  Eps: {current_eps:.4f}  Beta: {current_beta:.4f}"
-                  f"  LR: {current_lr:.2e}")
+            print(f"  Score (F/M): {log_entry['score_f']:.4f} / {log_entry['score_m']:.4f}")
+            print(f"  Score Gap (M-F): {log_entry['score_gap']:.4f}")
+            print(f"  Cosine Sim: F→M={log_entry['sim_f2m']:.4f}, "
+                  f"F→F={log_entry['sim_f2f']:.4f}")
+            print(f"  Avg Adaptive Weight: {log_entry['avg_weight']:.4f} "
+                  f"(clamped [1.0, 1.5])")
+            print(f"  Beta: {current_beta:.4f}")
+            print(f"  Samples (F/M): {log_entry['n_f_avg']:.1f} / {log_entry['n_m_avg']:.1f}")
 
             if (epoch + 1) % args.save_every == 0:
                 ckpt_path_save = output_dir / "checkpoints" / f"epoch_{epoch:04d}.pth"
@@ -788,19 +677,13 @@ def main():
     # =========================================================================
     if utils.is_main_process():
         print("\n" + "=" * 70)
-        print("Stabilized Gender-Aware Contrastive (4th) Complete!")
+        print("Clamped Adaptive Contrastive (6th) Complete!")
         print("=" * 70)
         print(f"Output: {output_dir}")
-        print("\n[4th = 3rd의 AP Gap 개선력 + fix2의 안정성]")
-        print("  - Male Detach → 과적합 방지 (fix2: 29 epochs 안정)")
-        print("  - Adaptive Weighting 제거 → Score Gap Reversal 해결")
-        print("  - M→F 제거 → Male AP 보호")
-        print("  - LayerNorm + Dropout → 정규화")
-        print("  - Feature Mean Alignment → 분포 중심 정렬")
-        print("\n성공 기준 (vs Baseline 0.1063 / 0.0081):")
-        print("  - AP Gap < 0.100 (~6% 개선)")
-        print("  - AR Gap < 0.005 (~38% 개선)")
-        print("  - Female AP > 0.410, Male AP >= 0.511")
+        print("\n[6th = 3rd의 Adaptive Power + SGR 차단]")
+        print("  - Clamped [1.0,1.5]: Reversal시 약화 방지, 정상시 증폭 유지")
+        print(f"  - M→F 고정 {args.w_m2f}: 5th ep7에서 검증된 최적값")
+        print("  - 나머지 전부 3rd 유지: 검증된 gradient 엔진 보존")
 
 
 if __name__ == "__main__":
