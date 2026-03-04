@@ -1,0 +1,66 @@
+{
+  "perturbed": {
+    "male": {
+      "AP": 0.5126354377474206,
+      "AR": 0.8354703415218694
+    },
+    "female": {
+      "AP": 0.41277259068860783,
+      "AR": 0.8347358121330724
+    }
+  },
+  "details": {
+    "perturbed": {
+      "male": {
+        "AP@[0.50:0.95]_all_100": 0.5126354377474206,
+        "AP@[0.50]_all_100": 0.6289583086887632,
+        "AP@[0.75]_all_100": 0.5642745474618792,
+        "AP@[0.50:0.95]_small_100": 0.08095616048471235,
+        "AP@[0.50:0.95]_medium_100": 0.06140075135983759,
+        "AP@[0.50:0.95]_large_100": 0.5280981849733669,
+        "AR@[0.50:0.95]_all_1": 0.4474236069502696,
+        "AR@[0.50:0.95]_all_10": 0.8065907729179148,
+        "AR@[0.50:0.95]_all_100": 0.8354703415218694,
+        "AR@[0.50:0.95]_small_100": 0.24000000000000005,
+        "AR@[0.50:0.95]_medium_100": 0.44430379746835447,
+        "AR@[0.50:0.95]_large_100": 0.8458819913952059
+      },
+      "female": {
+        "AP@[0.50:0.95]_all_100": 0.41277259068860783,
+        "AP@[0.50]_all_100": 0.5201488253508086,
+        "AP@[0.75]_all_100": 0.45877615320434806,
+        "AP@[0.50:0.95]_small_100": 0.1,
+        "AP@[0.50:0.95]_medium_100": 0.15358068660242186,
+        "AP@[0.50:0.95]_large_100": 0.4194316262161458,
+        "AR@[0.50:0.95]_all_1": 0.44980430528375737,
+        "AR@[0.50:0.95]_all_10": 0.8061643835616439,
+        "AR@[0.50:0.95]_all_100": 0.8347358121330724,
+        "AR@[0.50:0.95]_small_100": 0.4,
+        "AR@[0.50:0.95]_medium_100": 0.57,
+        "AR@[0.50:0.95]_large_100": 0.8377843719090009
+      }
+    }
+  },
+  "details_text": {
+    "perturbed": {
+      "male": " Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.513\n Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.629\n Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.564\n Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.081\n Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.061\n Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.528\n Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.447\n Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.807\n Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.835\n Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.240\n Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.444\n Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.846",
+      "female": " Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.413\n Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.520\n Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.459\n Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.100\n Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.154\n Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.419\n Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.450\n Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.806\n Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.835\n Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.400\n Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.570\n Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.838"
+    }
+  },
+  "gaps": {
+    "AP": {
+      "perturbed": 0.09986284705881276
+    },
+    "AR": {
+      "perturbed": 0.0007345293887970339
+    }
+  },
+  "hyperparams": {
+    "epsilon": 0.1,
+    "generator_checkpoint": "faap_outputs/faap_outputs_infonce_3rd_fix1_gpu/checkpoints/epoch_0000.pth",
+    "detr_checkpoint": "/workspace/detr/detr-r50-e632da11.pth",
+    "split": "test",
+    "batch_size": 20
+  },
+  "generated_at": "2026-03-04T13:02:52.162253+00:00"
+}

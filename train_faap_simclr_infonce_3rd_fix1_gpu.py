@@ -412,7 +412,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser("FAAP Fair Centroid Contrastive (3rd_fix1_gpu)")
 
     # Paths
-    parser.add_argument("--dataset_root", type=str, default="/home/dohyeong/Desktop/faap_dataset")
+    parser.add_argument("--dataset_root", type=str, default="/workspace/faap_dataset")
     parser.add_argument("--detr_repo", type=str, default=str(DETR_REPO))
     parser.add_argument("--detr_checkpoint", type=str, default=str(default_detr_checkpoint()))
     parser.add_argument("--output_dir", type=str, default=_default_output_dir(Path(__file__)))
@@ -420,7 +420,7 @@ def parse_args() -> argparse.Namespace:
     # Training
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--epochs", type=int, default=15)  # 24 → 15 (overfitting 방지)
-    parser.add_argument("--batch_size", type=int, default=16)  # 8 → 16 (BF16 메모리 절감 활용)
+    parser.add_argument("--batch_size", type=int, default=12)  # A100 80GB (16은 OOM)
     parser.add_argument("--num_workers", type=int, default=6)
     parser.add_argument("--lr_g", type=float, default=5e-5)  # 1e-4 → 5e-5 (더 안정적)
     parser.add_argument("--seed", type=int, default=42)
@@ -612,7 +612,7 @@ def main():
         "train",
         args.batch_size,
         include_gender=True,
-        balance_genders=True,
+        balance_genders=False,
         num_workers=args.num_workers,
         distributed=args.distributed,
         rank=args.rank,
