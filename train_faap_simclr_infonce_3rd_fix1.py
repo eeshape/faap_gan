@@ -406,7 +406,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser("FAAP Fair Centroid Contrastive (3rd_fix1)")
 
     # Paths
-    parser.add_argument("--dataset_root", type=str, default="/home/dohyeong/Desktop/faap_dataset")
+    parser.add_argument("--dataset_root", type=str, default="/workspace/faap_dataset")
     parser.add_argument("--detr_repo", type=str, default=str(DETR_REPO))
     parser.add_argument("--detr_checkpoint", type=str, default=str(default_detr_checkpoint()))
     parser.add_argument("--output_dir", type=str, default=_default_output_dir(Path(__file__)))
@@ -414,9 +414,9 @@ def parse_args() -> argparse.Namespace:
     # Training
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--epochs", type=int, default=15)  # 24 → 15 (overfitting 방지)
-    parser.add_argument("--batch_size", type=int, default=8)
-    parser.add_argument("--num_workers", type=int, default=6)
-    parser.add_argument("--lr_g", type=float, default=5e-5)  # 1e-4 → 5e-5 (더 안정적)
+    parser.add_argument("--batch_size", type=int, default=12)  # A100 80GB (16은 OOM)
+    parser.add_argument("--num_workers", type=int, default=8)  # A100
+    parser.add_argument("--lr_g", type=float, default=6e-5)  # batch 8→12, sqrt scaling: 5e-5 * sqrt(1.5) ≈ 6e-5
     parser.add_argument("--seed", type=int, default=42)
 
     # Perturbation
@@ -596,7 +596,7 @@ def main():
         "train",
         args.batch_size,
         include_gender=True,
-        balance_genders=True,
+        balance_genders=False,  # 원본 비율 그대로 사용
         num_workers=args.num_workers,
         distributed=args.distributed,
         rank=args.rank,
