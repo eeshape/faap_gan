@@ -33,4 +33,4 @@ def default_detr_checkpoint(detr_repo: Path = DETR_REPO) -> Path:
     """
     Default pretrained DETR checkpoint location.
     """
-    return Path("/home/dohyeong/Desktop/detr/detr-r50-e632da11.pth")
+    return detr_repo / "detr-r50-e632da11.pth"

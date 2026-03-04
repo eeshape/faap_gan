@@ -30,7 +30,7 @@ from datasets.coco_eval import CocoEvaluator
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser("Evaluate baseline vs. FAAP perturbation on DETR", add_help=True)
-    parser.add_argument("--dataset_root", type=str, default="/home/dohyeong/Desktop/faap_dataset")
+    parser.add_argument("--dataset_root", type=str, default="/workspace/faap_dataset")
     parser.add_argument("--detr_repo", type=str, default=str(DETR_REPO), help="path to DETR repository (for imports/checkpoint)")
     parser.add_argument("--detr_checkpoint", type=str, default=str(default_detr_checkpoint()), help="path to DETR pretrained checkpoint")
     parser.add_argument("--generator_checkpoint", type=str, default=None, help="trained generator checkpoint")
