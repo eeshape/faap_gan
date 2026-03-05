@@ -1,9 +1,6 @@
 __pycache__/
 *.pyc
-faap_outputs/*
-!faap_outputs/*.json
-!faap_outputs/*.jsonl
-!faap_outputs/faap_outputs_infonce_3rd_fix1_gpu/
+
 faap_outputs_w/generated_images/
 .DS_Store
 .vscode/

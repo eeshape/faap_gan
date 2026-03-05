@@ -511,7 +511,7 @@ def parse_args() -> argparse.Namespace:
     # Training
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--epochs", type=int, default=15)  # 24 → 15 (overfitting 방지)
-    parser.add_argument("--batch_size", type=int, default=12)  # A100 80GB (16은 OOM)
+    parser.add_argument("--batch_size", type=int, default=5)  # RTX 5090 32GB (12는 OOM)
     parser.add_argument("--num_workers", type=int, default=6)
     parser.add_argument("--lr_g", type=float, default=5e-5)  # 1e-4 → 5e-5 (더 안정적)
     parser.add_argument("--seed", type=int, default=42)
