@@ -1,0 +1,66 @@
+{
+  "perturbed": {
+    "male": {
+      "AP": 0.5124951894965953,
+      "AR": 0.8354104254044339
+    },
+    "female": {
+      "AP": 0.399661684939778,
+      "AR": 0.8313111545988259
+    }
+  },
+  "details": {
+    "perturbed": {
+      "male": {
+        "AP@[0.50:0.95]_all_100": 0.5124951894965953,
+        "AP@[0.50]_all_100": 0.6321859640962305,
+        "AP@[0.75]_all_100": 0.5638874962219658,
+        "AP@[0.50:0.95]_small_100": 0.1364908708797484,
+        "AP@[0.50:0.95]_medium_100": 0.06549345685517169,
+        "AP@[0.50:0.95]_large_100": 0.5267880341004988,
+        "AR@[0.50:0.95]_all_1": 0.44904134212103053,
+        "AR@[0.50:0.95]_all_10": 0.8069203115638107,
+        "AR@[0.50:0.95]_all_100": 0.8354104254044339,
+        "AR@[0.50:0.95]_small_100": 0.30000000000000004,
+        "AR@[0.50:0.95]_medium_100": 0.47341772151898737,
+        "AR@[0.50:0.95]_large_100": 0.8450215119852489
+      },
+      "female": {
+        "AP@[0.50:0.95]_all_100": 0.399661684939778,
+        "AP@[0.50]_all_100": 0.5061724136355307,
+        "AP@[0.75]_all_100": 0.44315213764648337,
+        "AP@[0.50:0.95]_small_100": 0.49999999999999994,
+        "AP@[0.50:0.95]_medium_100": 0.17981247555830177,
+        "AP@[0.50:0.95]_large_100": 0.40560145248253127,
+        "AR@[0.50:0.95]_all_1": 0.437573385518591,
+        "AR@[0.50:0.95]_all_10": 0.8,
+        "AR@[0.50:0.95]_all_100": 0.8313111545988259,
+        "AR@[0.50:0.95]_small_100": 0.5,
+        "AR@[0.50:0.95]_medium_100": 0.6199999999999999,
+        "AR@[0.50:0.95]_large_100": 0.833728981206726
+      }
+    }
+  },
+  "details_text": {
+    "perturbed": {
+      "male": " Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.512\n Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.632\n Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.564\n Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.136\n Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.065\n Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.527\n Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.449\n Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.807\n Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.835\n Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.300\n Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.473\n Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.845",
+      "female": " Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.400\n Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.506\n Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.443\n Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.500\n Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.180\n Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.406\n Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.438\n Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.800\n Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.831\n Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.500\n Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.620\n Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.834"
+    }
+  },
+  "gaps": {
+    "AP": {
+      "perturbed": 0.11283350455681734
+    },
+    "AR": {
+      "perturbed": 0.004099270805608013
+    }
+  },
+  "hyperparams": {
+    "epsilon": 0.1,
+    "generator_checkpoint": "/workspace/faap_gan/faap_outputs/faap_outputs_3rd_fix6_gpu_20260306/checkpoints/epoch_0002.pth",
+    "detr_checkpoint": "/workspace/detr/detr-r50-e632da11.pth",
+    "split": "test",
+    "batch_size": 16
+  },
+  "generated_at": "2026-03-09T00:38:29.934341+00:00"
+}

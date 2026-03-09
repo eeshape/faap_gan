@@ -36,7 +36,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--generator_checkpoint", type=str, required=True, help="trained generator checkpoint")
     parser.add_argument("--epsilon", type=float, default=0.10, help="perturbation bound (should match training)")
     parser.add_argument("--split", type=str, default="test", choices=["train", "val", "test"])
-    parser.add_argument("--batch_size", type=int, default=20)
+    parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--num_workers", type=int, default=8)
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--results_path", type=str, default="", help="output path for metrics (auto-generated if empty)")
