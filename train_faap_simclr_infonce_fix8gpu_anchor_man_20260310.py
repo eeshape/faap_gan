@@ -326,7 +326,7 @@ def parse_args():
 
     parser.add_argument("--ema_decay", type=float, default=0.999)
     parser.add_argument("--no_ema", action="store_true", default=False)
-    parser.add_argument("--no_compile", action="store_true", default=False)
+    parser.add_argument("--no_compile", action="store_true", default=True)
 
     parser.add_argument("--max_norm", type=float, default=0.1)
     parser.add_argument("--log_every", type=int, default=10)

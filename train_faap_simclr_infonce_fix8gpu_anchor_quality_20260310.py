@@ -395,7 +395,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--no_ema", action="store_true", default=False)
 
     # torch.compile
-    parser.add_argument("--no_compile", action="store_true", default=False,
+    parser.add_argument("--no_compile", action="store_true", default=True,
                         help="Disable torch.compile (디버깅 시 사용)")
 
     # Other
