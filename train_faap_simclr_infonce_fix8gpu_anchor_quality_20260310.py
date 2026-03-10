@@ -157,19 +157,25 @@ class QualitySupConLoss(nn.Module):
         sim_masked = sim.masked_fill(mask_self, float('-inf'))
         log_denom = torch.logsumexp(sim_masked, dim=1)  # (N,)
 
-        loss = projections.new_tensor(0.0)
-        valid_anchors = 0
+        # Vectorized computation (no Python for-loop over GPU tensors)
+        has_pos = pos_mask.any(dim=1)  # (N,)
 
-        for i in range(n):
-            pos_idx = pos_mask[i].nonzero(as_tuple=True)[0]
-            if len(pos_idx) == 0:
-                continue
-            pos_loss = (sim[i, pos_idx] - log_denom[i]).mean()
-            loss = loss - pos_loss
-            valid_anchors += 1
+        if not has_pos.any():
+            female_idx = [i for i, g in enumerate(genders) if g == "female"]
+            male_idx = [i for i, g in enumerate(genders) if g == "male"]
+            return projections.new_tensor(0.0), {
+                "n_bins_used": 0, "score_gap": 0.0,
+                "score_f_mean": scores[female_idx].mean().item() if female_idx else 0.0,
+                "score_m_mean": scores[male_idx].mean().item() if male_idx else 0.0,
+                "valid_anchors": 0,
+            }
 
-        if valid_anchors > 0:
-            loss = loss / valid_anchors
+        n_pos = pos_mask.float().sum(dim=1).clamp(min=1)  # (N,)
+        mean_pos_sim = (sim * pos_mask.float()).sum(dim=1) / n_pos  # (N,)
+
+        per_sample_loss = -(mean_pos_sim - log_denom)
+        loss = per_sample_loss[has_pos].mean()
+        valid_anchors = has_pos.sum().item()
 
         # 로깅
         female_idx = [i for i, g in enumerate(genders) if g == "female"]
@@ -382,7 +388,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--contrastive_warmup_epochs", type=int, default=3)
 
     # Score computation
-    parser.add_argument("--use_hungarian_score", action="store_true", default=True)
+    parser.add_argument("--use_hungarian_score", action="store_true", default=False)
     parser.add_argument("--no_hungarian_score", dest="use_hungarian_score", action="store_false")
     parser.add_argument("--score_top_k", type=int, default=10)
 
@@ -487,7 +493,7 @@ def main():
         print(f"EMA: {'ON (decay={args.ema_decay})' if not args.no_ema else 'OFF'}")
         print(f"Batch size: {args.batch_size}")
         print(f"torch.compile: {'OFF' if args.no_compile else 'ON (reduce-overhead)'}")
-        print(f"channels_last: ON, cudnn.benchmark: ON")
+        print(f"cudnn.benchmark: ON")
         print("=" * 70)
 
     # ==========================================================================
@@ -495,7 +501,7 @@ def main():
     # ==========================================================================
 
     detr = FrozenDETR(checkpoint_path=ckpt_path, device=str(device), detr_repo=detr_repo)
-    generator = PerturbationGenerator(epsilon=args.epsilon).to(device, memory_format=torch.channels_last)
+    generator = PerturbationGenerator(epsilon=args.epsilon).to(device)
 
     proj_head = ProjectionHead(
         input_dim=detr.hidden_dim,
@@ -618,7 +624,7 @@ def main():
 
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
                 # Perturbation 적용 (channels_last for Tensor Core)
-                tensors = samples.tensors.to(memory_format=torch.channels_last)
+                tensors = samples.tensors
                 delta = generator(tensors)
                 perturbed_tensors = clamp_normalized(tensors + delta)
                 perturbed = NestedTensor(perturbed_tensors, samples.mask)

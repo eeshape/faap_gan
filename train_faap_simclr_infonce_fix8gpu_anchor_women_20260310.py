@@ -128,31 +128,33 @@ class GenderAnchorSupConLoss(nn.Module):
         sim_all = torch.mm(projections, projections.t()) / self.temperature  # (N, N)
         mask_self = torch.eye(n, device=projections.device, dtype=torch.bool)
 
-        loss = projections.new_tensor(0.0)
-        valid_anchors = 0
+        # Vectorized computation (no Python for-loop over GPU tensors)
+        anchor_t = torch.tensor(anchor_idx, device=projections.device, dtype=torch.long)
+        target_t = torch.tensor(target_idx, device=projections.device, dtype=torch.long)
 
-        for i in anchor_idx:
-            anchor_bin = labels[i]
+        # Positive mask: same quality bin between anchor and target
+        pos_mask = labels[anchor_t].unsqueeze(1) == labels[target_t].unsqueeze(0)  # (n_a, n_t)
+        has_pos = pos_mask.any(dim=1)  # (n_a,)
 
-            # Positive: 같은 bin의 target gender (Male)
-            pos_idx = [j for j in target_idx if labels[j] == anchor_bin]
-            if len(pos_idx) == 0:
-                continue
+        if not has_pos.any():
+            return projections.new_tensor(0.0), {
+                "n_anchor": len(anchor_idx), "n_target": len(target_idx),
+                "score_gap": 0.0, "valid_anchors": 0,
+            }
 
-            # Denominator: anchor vs 전체 (자기 자신 제외)
-            denom_mask = mask_self[i]
-            sim_denom = sim_all[i].masked_fill(denom_mask, float('-inf'))
-            log_denom = torch.logsumexp(sim_denom, dim=0)
+        # Denominator: logsumexp over all non-self for each anchor
+        sim_anchors = sim_all[anchor_t].masked_fill(mask_self[anchor_t], float('-inf'))
+        log_denom = torch.logsumexp(sim_anchors, dim=1)  # (n_a,)
 
-            # Numerator: anchor vs positive (같은 bin의 Male)
-            pos_sims = sim_all[i, pos_idx]
-            pos_loss = (pos_sims - log_denom).mean()
+        # Numerator: mean of positive similarities per anchor
+        sim_a2t = sim_all[anchor_t][:, target_t]  # (n_a, n_t)
+        n_pos = pos_mask.float().sum(dim=1).clamp(min=1)
+        mean_pos_sim = (sim_a2t * pos_mask.float()).sum(dim=1) / n_pos
 
-            loss = loss - pos_loss
-            valid_anchors += 1
-
-        if valid_anchors > 0:
-            loss = loss / valid_anchors
+        # SupCon loss
+        per_anchor_loss = -(mean_pos_sim - log_denom)
+        loss = per_anchor_loss[has_pos].mean()
+        valid_anchors = has_pos.sum().item()
 
         # 로깅
         score_gap = 0.0
@@ -315,7 +317,7 @@ def parse_args():
     parser.add_argument("--n_bins", type=int, default=3)
     parser.add_argument("--contrastive_warmup_epochs", type=int, default=3)
 
-    parser.add_argument("--use_hungarian_score", action="store_true", default=True)
+    parser.add_argument("--use_hungarian_score", action="store_true", default=False)
     parser.add_argument("--no_hungarian_score", dest="use_hungarian_score", action="store_false")
     parser.add_argument("--score_top_k", type=int, default=10)
 
@@ -402,7 +404,7 @@ def main():
 
     # Models
     detr = FrozenDETR(checkpoint_path=ckpt_path, device=str(device), detr_repo=detr_repo)
-    generator = PerturbationGenerator(epsilon=args.epsilon).to(device, memory_format=torch.channels_last)
+    generator = PerturbationGenerator(epsilon=args.epsilon).to(device)
     proj_head = ProjectionHead(detr.hidden_dim, detr.hidden_dim, args.proj_dim, args.proj_dropout).to(device)
     supcon_loss_fn = GenderAnchorSupConLoss(args.temperature, args.n_bins).to(device)
 
@@ -476,7 +478,7 @@ def main():
             opt_g.zero_grad(set_to_none=True)
 
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                tensors = samples.tensors.to(memory_format=torch.channels_last)
+                tensors = samples.tensors
                 delta = generator(tensors)
                 perturbed_tensors = clamp_normalized(tensors + delta)
                 perturbed = NestedTensor(perturbed_tensors, samples.mask)
