@@ -110,10 +110,13 @@ class GenderAnchorSupConLoss(nn.Module):
         anchor_idx = [i for i, g in enumerate(genders) if g == self.ANCHOR_GENDER]
         target_idx = [i for i, g in enumerate(genders) if g == self.TARGET_GENDER]
 
-        if len(anchor_idx) < 2 or len(target_idx) < 1:
+        if len(anchor_idx) < 1 or len(target_idx) < 1:
             return projections.new_tensor(0.0), {
                 "n_anchor": len(anchor_idx), "n_target": len(target_idx),
                 "score_gap": 0.0, "valid_anchors": 0,
+                "score_f_mean": scores[anchor_idx].mean().item() if len(anchor_idx) > 0 else 0.0,
+                "score_m_mean": scores[target_idx].mean().item() if len(target_idx) > 0 else 0.0,
+                "n_bins_used": 0,
             }
 
         # Quality bin 할당 (전체 batch 기준)
@@ -139,7 +142,11 @@ class GenderAnchorSupConLoss(nn.Module):
         if not has_pos.any():
             return projections.new_tensor(0.0), {
                 "n_anchor": len(anchor_idx), "n_target": len(target_idx),
-                "score_gap": 0.0, "valid_anchors": 0,
+                "score_gap": (scores[target_idx].mean() - scores[anchor_idx].mean()).item(),
+                "valid_anchors": 0,
+                "score_f_mean": scores[anchor_idx].mean().item(),
+                "score_m_mean": scores[target_idx].mean().item(),
+                "n_bins_used": len(labels.unique()),
             }
 
         # Denominator: logsumexp over all non-self for each anchor

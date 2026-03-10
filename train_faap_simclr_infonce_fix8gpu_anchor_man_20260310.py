@@ -112,10 +112,13 @@ class GenderAnchorSupConLoss(nn.Module):
         anchor_idx = [i for i, g in enumerate(genders) if g == self.ANCHOR_GENDER]
         target_idx = [i for i, g in enumerate(genders) if g == self.TARGET_GENDER]
 
-        if len(anchor_idx) < 2 or len(target_idx) < 1:
+        if len(anchor_idx) < 1 or len(target_idx) < 1:
             return projections.new_tensor(0.0), {
                 "n_anchor": len(anchor_idx), "n_target": len(target_idx),
                 "score_gap": 0.0, "valid_anchors": 0,
+                "score_f_mean": scores[target_idx].mean().item() if len(target_idx) > 0 else 0.0,
+                "score_m_mean": scores[anchor_idx].mean().item() if len(anchor_idx) > 0 else 0.0,
+                "n_bins_used": 0,
             }
 
         # Quality bin 할당 (전체 batch 기준)
@@ -141,7 +144,11 @@ class GenderAnchorSupConLoss(nn.Module):
         if not has_pos.any():
             return projections.new_tensor(0.0), {
                 "n_anchor": len(anchor_idx), "n_target": len(target_idx),
-                "score_gap": 0.0, "valid_anchors": 0,
+                "score_gap": (scores[target_idx].mean() - scores[anchor_idx].mean()).item(),
+                "valid_anchors": 0,
+                "score_f_mean": scores[target_idx].mean().item(),
+                "score_m_mean": scores[anchor_idx].mean().item(),
+                "n_bins_used": len(labels.unique()),
             }
 
         # Denominator: logsumexp over all non-self for each anchor
@@ -167,8 +174,8 @@ class GenderAnchorSupConLoss(nn.Module):
             "n_anchor": len(anchor_idx),
             "n_target": len(target_idx),
             "score_gap": score_gap,
-            "score_f_mean": scores[anchor_idx].mean().item(),
-            "score_m_mean": scores[target_idx].mean().item(),
+            "score_f_mean": scores[target_idx].mean().item(),
+            "score_m_mean": scores[anchor_idx].mean().item(),
             "valid_anchors": valid_anchors,
             "n_bins_used": len(labels.unique()),
         }
@@ -497,7 +504,7 @@ def main():
                 loss_wasserstein = perturbed_tensors.new_tensor(0.0)
                 if len(female_idx) > 0 and len(male_idx) > 0:
                     loss_wasserstein = _wasserstein_1d_unidirectional(
-                        image_scores[female_idx], image_scores[male_idx])
+                        image_scores[male_idx], image_scores[female_idx])
 
                 loss_det, _ = detr.detection_loss(outputs, targets)
 
