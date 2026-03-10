@@ -434,7 +434,7 @@ def main():
     # ==========================================================================
     torch.backends.cuda.matmul.allow_tf32 = True       # TF32 matmul (A100+)
     torch.backends.cudnn.allow_tf32 = True              # TF32 cuDNN
-    torch.backends.cudnn.benchmark = True               # Conv autotuning
+    torch.backends.cudnn.benchmark = False              # 가변 크기 입력 → benchmark 끄기 (VRAM 안정화)
     torch.set_float32_matmul_precision('high')          # torch.compile 호환
 
     # Setup

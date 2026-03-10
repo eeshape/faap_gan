@@ -353,7 +353,7 @@ def main():
 
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
-    torch.backends.cudnn.benchmark = True
+    torch.backends.cudnn.benchmark = False  # 가변 크기 입력 → benchmark 끄기 (VRAM 안정화)
     torch.set_float32_matmul_precision('high')
 
     detr_repo = ensure_detr_repo_on_path(Path(args.detr_repo))
