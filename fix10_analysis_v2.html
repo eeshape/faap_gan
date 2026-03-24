@@ -1,0 +1,1564 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FAAP fix10 — Distribution-Fixed Loss (Idea 2)</title>
+<script>
+MathJax = {
+  tex: { inlineMath: [['$','$']], displayMath: [['$$','$$']] },
+  svg: { fontCache: 'global' }
+};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Noto+Sans+KR:wght@300;400;500;700;900&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0f0f13;
+  --surface: #18181f;
+  --surface-2: #1e1e28;
+  --surface-3: #252532;
+  --text: #e4e4e8;
+  --text-dim: #8888a0;
+  --text-faint: #55556a;
+  --accent: #4ecdc4;
+  --accent-glow: rgba(78,205,196,0.15);
+  --warm: #ff6b6b;
+  --warm-glow: rgba(255,107,107,0.12);
+  --gold: #ffd93d;
+  --gold-dim: rgba(255,217,61,0.1);
+  --purple: #a78bfa;
+  --green: #6ee7b7;
+  --green-glow: rgba(110,231,183,0.12);
+  --border: #2a2a3a;
+  --code-bg: #13131a;
+  --radius: 14px;
+  --shadow: 0 4px 30px rgba(0,0,0,0.4);
+  --shadow-glow: 0 0 40px rgba(78,205,196,0.06);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'Noto Sans KR', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1.8;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ═══ HERO ═══ */
+.hero {
+  min-height: 85vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.hero-mesh {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 55% 65% at 20% 35%, rgba(78,205,196,0.09), transparent),
+    radial-gradient(ellipse 45% 55% at 80% 65%, rgba(110,231,183,0.07), transparent),
+    radial-gradient(ellipse 50% 40% at 50% 15%, rgba(167,139,250,0.06), transparent);
+  animation: meshShift 14s ease-in-out infinite alternate;
+}
+
+@keyframes meshShift {
+  0% { filter: hue-rotate(0deg) brightness(1); }
+  100% { filter: hue-rotate(18deg) brightness(1.04); }
+}
+
+.hero-lines {
+  position: absolute;
+  inset: 0;
+  background-image:
+    repeating-linear-gradient(0deg, transparent, transparent 79px, rgba(255,255,255,0.012) 79px, rgba(255,255,255,0.012) 80px),
+    repeating-linear-gradient(90deg, transparent, transparent 79px, rgba(255,255,255,0.008) 79px, rgba(255,255,255,0.008) 80px);
+  mask-image: radial-gradient(ellipse 85% 75% at 50% 50%, black, transparent);
+}
+
+.hero-content {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  padding: 4rem 2rem;
+  max-width: 780px;
+}
+
+.hero-idea-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: linear-gradient(135deg, rgba(78,205,196,0.12), rgba(110,231,183,0.08));
+  border: 1px solid rgba(78,205,196,0.3);
+  border-radius: 100px;
+  padding: 0.35rem 1.1rem;
+  font-family: 'Fira Code', monospace;
+  font-size: 0.72rem;
+  color: var(--accent);
+  margin-bottom: 1.2rem;
+  opacity: 0;
+  animation: slideUp 0.6s ease 0.05s forwards;
+}
+
+.idea-dot {
+  width: 7px; height: 7px;
+  background: var(--green);
+  border-radius: 50%;
+  box-shadow: 0 0 8px var(--green);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.7); }
+}
+
+.hero-tag {
+  font-family: 'Fira Code', monospace;
+  font-size: 0.72rem;
+  letter-spacing: 3.5px;
+  text-transform: uppercase;
+  color: var(--accent);
+  opacity: 0;
+  animation: slideUp 0.6s ease 0.1s forwards;
+}
+
+.hero h1 {
+  font-family: 'DM Serif Display', serif;
+  font-size: clamp(2.6rem, 5.5vw, 4.8rem);
+  font-weight: 400;
+  color: #fff;
+  line-height: 1.12;
+  margin: 0.8rem 0;
+  opacity: 0;
+  animation: slideUp 0.7s ease 0.25s forwards;
+}
+
+.hero h1 .glow {
+  background: linear-gradient(135deg, var(--accent), var(--green));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero h1 .glow-fixed {
+  background: linear-gradient(135deg, var(--gold), #ffb347);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero-desc {
+  font-size: 1rem;
+  color: var(--text-dim);
+  font-weight: 300;
+  max-width: 560px;
+  margin: 0 auto 2.5rem;
+  opacity: 0;
+  animation: slideUp 0.7s ease 0.4s forwards;
+}
+
+.hero-chips {
+  display: flex;
+  gap: 0.55rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  opacity: 0;
+  animation: slideUp 0.6s ease 0.55s forwards;
+}
+
+.chip {
+  font-family: 'Fira Code', monospace;
+  font-size: 0.68rem;
+  padding: 0.3rem 0.85rem;
+  border-radius: 100px;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  background: var(--surface);
+}
+
+.chip.removed {
+  border-color: rgba(255,107,107,0.3);
+  color: var(--warm);
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+.chip.new {
+  border-color: rgba(78,205,196,0.4);
+  color: var(--accent);
+  box-shadow: 0 0 12px rgba(78,205,196,0.08);
+}
+
+.chip.key {
+  border-color: rgba(110,231,183,0.4);
+  color: var(--green);
+  box-shadow: 0 0 12px rgba(110,231,183,0.07);
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(22px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ═══ NAV ═══ */
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(15,15,19,0.9);
+  backdrop-filter: blur(18px);
+  border-bottom: 1px solid var(--border);
+}
+
+.nav-progress {
+  position: absolute;
+  bottom: 0; left: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent), var(--green));
+  width: 0%;
+  transition: width 0.1s linear;
+}
+
+.nav-inner {
+  max-width: 1000px;
+  margin: 0 auto;
+  display: flex;
+  gap: 0.15rem;
+  padding: 0.45rem 1.5rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.nav-inner::-webkit-scrollbar { display: none; }
+
+.nav-link {
+  font-size: 0.73rem;
+  font-weight: 500;
+  color: var(--text-faint);
+  text-decoration: none;
+  padding: 0.38rem 0.75rem;
+  border-radius: 6px;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+.nav-link:hover { color: var(--text-dim); background: var(--surface-2); }
+.nav-link.active { color: var(--accent); background: rgba(78,205,196,0.08); }
+
+/* ═══ CONTENT ═══ */
+.container {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 0 2rem 7rem;
+}
+
+section {
+  margin-top: 5.5rem;
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 0.55s ease, transform 0.55s ease;
+}
+section.visible { opacity: 1; transform: translateY(0); }
+
+.sec-label {
+  font-family: 'Fira Code', monospace;
+  font-size: 0.68rem;
+  color: var(--accent);
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  margin-bottom: 0.4rem;
+  opacity: 0.55;
+  transition: opacity 0.3s;
+}
+section:hover .sec-label { opacity: 1; }
+
+section > h2 {
+  font-family: 'DM Serif Display', serif;
+  font-size: 2rem;
+  font-weight: 400;
+  color: #fff;
+  margin-bottom: 1.3rem;
+}
+
+h3 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 2.5rem 0 0.8rem;
+  padding-left: 1rem;
+  border-left: 3px solid var(--accent);
+}
+h3.green { border-left-color: var(--green); }
+h3.gold { border-left-color: var(--gold); }
+h3.purple { border-left-color: var(--purple); }
+
+h4 {
+  font-size: 0.93rem;
+  font-weight: 700;
+  margin: 1.5rem 0 0.5rem;
+  color: var(--text);
+}
+
+p { margin-bottom: 1rem; color: var(--text-dim); }
+p strong { color: var(--text); }
+
+/* ═══ CARDS ═══ */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.8rem;
+  margin: 1.5rem 0;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.card:hover { transform: translateY(-2px); box-shadow: var(--shadow-glow); }
+.card-accent { border-color: rgba(78,205,196,0.25); background: linear-gradient(135deg, var(--surface), rgba(78,205,196,0.03)); }
+.card-warm { border-color: rgba(255,107,107,0.2); background: linear-gradient(135deg, var(--surface), rgba(255,107,107,0.03)); }
+.card-gold { border-color: rgba(255,217,61,0.2); background: linear-gradient(135deg, var(--surface), rgba(255,217,61,0.03)); }
+.card-purple { border-color: rgba(167,139,250,0.2); background: linear-gradient(135deg, var(--surface), rgba(167,139,250,0.03)); }
+.card-green { border-color: rgba(110,231,183,0.25); background: linear-gradient(135deg, var(--surface), rgba(110,231,183,0.03)); }
+
+/* ═══ MATH ═══ */
+.math-block {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.5rem 2rem;
+  margin: 1.5rem 0;
+  overflow-x: auto;
+  text-align: center;
+}
+.math-block.glow {
+  border-color: rgba(78,205,196,0.3);
+  box-shadow: 0 0 35px rgba(78,205,196,0.06);
+  background: linear-gradient(135deg, var(--surface-2), rgba(78,205,196,0.04));
+}
+.math-block.glow-green {
+  border-color: rgba(110,231,183,0.3);
+  box-shadow: 0 0 35px rgba(110,231,183,0.06);
+  background: linear-gradient(135deg, var(--surface-2), rgba(110,231,183,0.04));
+}
+.math-block.glow-gold {
+  border-color: rgba(255,217,61,0.3);
+  box-shadow: 0 0 35px rgba(255,217,61,0.06);
+  background: linear-gradient(135deg, var(--surface-2), rgba(255,217,61,0.04));
+}
+.math-label {
+  font-family: 'Fira Code', monospace;
+  font-size: 0.62rem;
+  color: var(--text-faint);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-bottom: 0.75rem;
+  text-align: left;
+}
+
+/* ═══ CODE ═══ */
+.code-block {
+  background: var(--code-bg);
+  font-family: 'Fira Code', monospace;
+  font-size: 0.79rem;
+  line-height: 1.75;
+  border-radius: 10px;
+  padding: 1.3rem 1.6rem;
+  margin: 1rem 0;
+  overflow-x: auto;
+  border: 1px solid rgba(255,255,255,0.04);
+  position: relative;
+  color: var(--text-dim);
+  white-space: pre;
+}
+.code-block .cm { color: #4a4a60; }
+.code-block .kw { color: #c678dd; }
+.code-block .fn { color: #61afef; }
+.code-block .st { color: #98c379; }
+.code-block .nm { color: #d19a66; }
+.code-block .op { color: #56b6c2; }
+.code-block .hl { color: var(--green); }
+.code-block .tag {
+  position: absolute; top: 0.5rem; right: 0.8rem;
+  font-size: 0.58rem; color: var(--text-faint);
+  letter-spacing: 1px; text-transform: uppercase;
+}
+
+code {
+  font-family: 'Fira Code', monospace;
+  font-size: 0.84em;
+  background: var(--surface-2);
+  padding: 0.13em 0.42em;
+  border-radius: 5px;
+  color: var(--accent);
+}
+
+/* ═══ TABLES ═══ */
+.table-wrap {
+  overflow-x: auto;
+  margin: 1.5rem 0;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+table { width: 100%; border-collapse: collapse; font-size: 0.87rem; }
+thead { background: var(--surface-3); }
+th {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.76rem;
+  color: var(--text-dim);
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border);
+}
+td {
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  color: var(--text-dim);
+}
+tbody tr:hover { background: rgba(78,205,196,0.02); }
+.t-accent { color: var(--accent); font-weight: 600; }
+.t-warm { color: var(--warm); font-weight: 600; }
+.t-gold { color: var(--gold); font-weight: 600; }
+.t-green { color: var(--green); font-weight: 600; }
+.t-purple { color: var(--purple); font-weight: 600; }
+.t-strike { text-decoration: line-through; opacity: 0.35; }
+.t-center { text-align: center; }
+
+/* ═══ CALLOUT ═══ */
+.callout {
+  display: flex;
+  gap: 1rem;
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 1.2rem 1.5rem;
+  margin: 1.5rem 0;
+  border-left: 3px solid var(--accent);
+}
+.callout.green { border-left-color: var(--green); }
+.callout.gold { border-left-color: var(--gold); }
+.callout.warm { border-left-color: var(--warm); }
+.callout-icon { font-size: 1.2rem; flex-shrink: 0; line-height: 1.6; }
+.callout-body { font-size: 0.9rem; color: var(--text-dim); }
+.callout-body strong { color: var(--text); }
+
+/* ═══ PIPELINE ═══ */
+.pipeline {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 2rem 1.5rem;
+  margin: 2rem 0;
+}
+
+.pipeline-title {
+  font-family: 'Fira Code', monospace;
+  font-size: 0.65rem;
+  color: var(--text-faint);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 1.5rem;
+}
+
+.pipe-row {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  overflow-x: auto;
+}
+.pipe-row + .pipe-row { margin-top: 1rem; }
+
+.pipe-node {
+  flex: 1;
+  min-width: 120px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.7rem 0.9rem;
+  text-align: center;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.pipe-node.teal  { border-color: rgba(78,205,196,0.35); color: var(--accent); background: rgba(78,205,196,0.06); }
+.pipe-node.green { border-color: rgba(110,231,183,0.35); color: var(--green); background: rgba(110,231,183,0.06); }
+.pipe-node.gold  { border-color: rgba(255,217,61,0.35); color: var(--gold); background: rgba(255,217,61,0.06); }
+.pipe-node.purple { border-color: rgba(167,139,250,0.35); color: var(--purple); background: rgba(167,139,250,0.06); }
+.pipe-node.warm  { border-color: rgba(255,107,107,0.35); color: var(--warm); background: rgba(255,107,107,0.06); }
+.pipe-node.frozen {
+  border-style: dashed;
+  border-color: rgba(167,139,250,0.4);
+  color: var(--purple);
+  background: rgba(167,139,250,0.05);
+}
+.node-sub {
+  font-family: 'Fira Code', monospace;
+  font-size: 0.6rem;
+  font-weight: 400;
+  color: var(--text-faint);
+  display: block;
+  margin-top: 0.15rem;
+}
+
+.pipe-arrow {
+  width: 36px;
+  flex-shrink: 0;
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 0.9rem;
+}
+
+.pipe-badge {
+  font-family: 'Fira Code', monospace;
+  font-size: 0.55rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 100px;
+  margin-top: 0.35rem;
+  display: inline-block;
+}
+.pipe-badge.no-grad { background: rgba(255,107,107,0.12); color: var(--warm); border: 1px solid rgba(255,107,107,0.25); }
+.pipe-badge.grad-on { background: rgba(78,205,196,0.1); color: var(--accent); border: 1px solid rgba(78,205,196,0.25); }
+
+.pipe-split-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.pipe-split-box {
+  background: var(--surface-2);
+  border-radius: 8px;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  font-size: 0.8rem;
+}
+.pipe-split-box .box-title { font-weight: 700; margin-bottom: 0.4rem; }
+.pipe-split-box .box-body { color: var(--text-dim); font-size: 0.78rem; line-height: 1.7; }
+
+/* ═══ LOSS OVERVIEW GRID ═══ */
+.loss-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin: 2rem 0;
+}
+@media (max-width: 720px) { .loss-grid { grid-template-columns: 1fr; } }
+
+.loss-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.4rem;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.loss-card:hover { transform: translateY(-3px); }
+.loss-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+}
+.loss-card.con::before  { background: linear-gradient(90deg, var(--accent), var(--purple)); }
+.loss-card.stab::before { background: linear-gradient(90deg, var(--green), var(--accent)); }
+.loss-card.det::before  { background: linear-gradient(90deg, var(--gold), #ffb347); }
+
+.loss-idx {
+  font-family: 'DM Serif Display', serif;
+  font-size: 2.5rem;
+  color: var(--text-faint);
+  opacity: 0.18;
+  position: absolute;
+  top: 0.6rem; right: 0.9rem;
+  line-height: 1;
+}
+.loss-symbol {
+  font-family: 'Fira Code', monospace;
+  font-size: 0.8rem;
+  margin-bottom: 0.6rem;
+  display: block;
+}
+.loss-card.con  .loss-symbol { color: var(--accent); }
+.loss-card.stab .loss-symbol { color: var(--green); }
+.loss-card.det  .loss-symbol { color: var(--gold); }
+
+.loss-name { font-size: 0.93rem; font-weight: 700; color: var(--text); margin-bottom: 0.4rem; }
+.loss-desc { font-size: 0.8rem; color: var(--text-dim); line-height: 1.6; }
+
+/* ═══ STABILITY BOX ═══ */
+.stability-box {
+  background: linear-gradient(135deg, rgba(110,231,183,0.06), rgba(78,205,196,0.03));
+  border: 1.5px solid rgba(110,231,183,0.3);
+  border-radius: var(--radius);
+  padding: 2rem;
+  margin: 2rem 0;
+  position: relative;
+  overflow: hidden;
+}
+.stability-box::before {
+  content: 'KEY COMPONENT';
+  position: absolute;
+  top: 0.8rem; right: 1rem;
+  font-family: 'Fira Code', monospace;
+  font-size: 0.55rem;
+  letter-spacing: 2px;
+  color: var(--green);
+  opacity: 0.45;
+}
+.stability-box-title {
+  font-family: 'DM Serif Display', serif;
+  font-size: 1.3rem;
+  color: var(--green);
+  margin-bottom: 0.8rem;
+}
+
+/* ═══ INSIGHT ═══ */
+.insight {
+  display: flex;
+  gap: 1rem;
+  background: linear-gradient(135deg, rgba(167,139,250,0.07), rgba(78,205,196,0.04));
+  border: 1px solid rgba(167,139,250,0.25);
+  border-radius: var(--radius);
+  padding: 1.4rem 1.6rem;
+  margin: 1.5rem 0;
+}
+.insight-icon { font-size: 1.4rem; flex-shrink: 0; line-height: 1.5; }
+.insight-text { font-size: 0.9rem; color: var(--text-dim); }
+.insight-text strong { color: var(--purple); }
+
+/* ═══ GRAD FLOW ═══ */
+.grad-flow {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 2rem;
+  margin: 2rem 0;
+}
+.gf-header {
+  font-family: 'Fira Code', monospace;
+  font-size: 0.62rem;
+  color: var(--text-faint);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-bottom: 1.2rem;
+}
+.gf-cols {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-bottom: 0.6rem;
+}
+.gf-col-label {
+  text-align: center;
+  font-family: 'Fira Code', monospace;
+  font-size: 0.72rem;
+}
+.gf-status-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+.gf-status {
+  border-radius: 8px;
+  padding: 0.7rem;
+  text-align: center;
+}
+.gf-status .st-label { font-size: 0.8rem; font-weight: 700; }
+.gf-status .st-desc { font-size: 0.7rem; color: var(--text-faint); margin-top: 0.15rem; }
+.gf-status.blocked { background: rgba(255,107,107,0.07); border: 1px dashed rgba(255,107,107,0.35); }
+.gf-status.penalized { background: rgba(110,231,183,0.07); border: 1px solid rgba(110,231,183,0.3); }
+.gf-status.indirect { background: rgba(255,217,61,0.05); border: 1px solid rgba(255,217,61,0.2); }
+
+.gf-arrow-row {
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--text-faint);
+  margin: 0.5rem 0;
+}
+
+.gf-g-box {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.2rem;
+  text-align: center;
+}
+.gf-g-title { font-size: 0.85rem; font-weight: 700; color: var(--text); margin-bottom: 0.4rem; }
+.gf-g-signals { font-size: 0.78rem; color: var(--text-dim); }
+
+.gf-legend {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  margin-top: 1.2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+.gf-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.74rem;
+  color: var(--text-dim);
+}
+.gf-legend-dot {
+  width: 10px; height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+/* ═══ VS COMPARISON ═══ */
+.vs-grid {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 1.5rem;
+  align-items: start;
+  margin: 2rem 0;
+}
+@media (max-width: 700px) {
+  .vs-grid { grid-template-columns: 1fr; }
+  .vs-divider { display: none; }
+}
+.vs-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+}
+.vs-card.old { border-top: 3px solid var(--warm); }
+.vs-card.new { border-top: 3px solid var(--accent); }
+.vs-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'DM Serif Display', serif;
+  font-size: 1.5rem;
+  color: var(--text-faint);
+  padding-top: 2rem;
+}
+.vs-tag {
+  font-family: 'Fira Code', monospace;
+  font-size: 0.62rem;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 0.75rem;
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+}
+.vs-card.old .vs-tag { color: var(--warm); background: var(--warm-glow); }
+.vs-card.new .vs-tag { color: var(--accent); background: var(--accent-glow); }
+.vs-list { list-style: none; margin-top: 1rem; }
+.vs-list li {
+  font-size: 0.84rem;
+  color: var(--text-dim);
+  padding: 0.4rem 0;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  line-height: 1.5;
+}
+.vs-list li::before { flex-shrink: 0; margin-top: 0.08rem; font-weight: 700; }
+.vs-card.old .vs-list li::before { content: '−'; color: var(--warm); }
+.vs-card.new .vs-list li::before { content: '+'; color: var(--accent); }
+
+/* ═══ Q&A ═══ */
+.qa-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin: 1.2rem 0;
+  overflow: hidden;
+}
+.qa-q {
+  padding: 1.2rem 1.5rem;
+  cursor: pointer;
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  transition: background 0.2s;
+  user-select: none;
+}
+.qa-q:hover { background: var(--surface-2); }
+.qa-q-num {
+  font-family: 'Fira Code', monospace;
+  font-size: 0.65rem;
+  color: var(--accent);
+  background: var(--accent-glow);
+  padding: 0.2rem 0.55rem;
+  border-radius: 4px;
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+}
+.qa-q-text { font-weight: 600; font-size: 0.93rem; color: var(--text); flex: 1; line-height: 1.5; }
+.qa-toggle { color: var(--text-faint); font-size: 0.85rem; flex-shrink: 0; transition: transform 0.25s; margin-top: 0.1rem; }
+.qa-a { max-height: 0; overflow: hidden; transition: max-height 0.38s ease; }
+.qa-a-inner {
+  padding: 0 1.5rem 1.3rem 3.8rem;
+  font-size: 0.88rem;
+  color: var(--text-dim);
+  line-height: 1.8;
+}
+.qa-a-inner p { margin-bottom: 0.8rem; }
+.qa-item.open .qa-toggle { transform: rotate(180deg); }
+.qa-item.open .qa-a { max-height: 700px; }
+
+/* ═══ BACK TO TOP ═══ */
+.btt {
+  position: fixed;
+  bottom: 2rem; right: 2rem;
+  width: 42px; height: 42px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  text-decoration: none;
+  font-size: 1rem;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.3s, transform 0.3s, background 0.2s, border-color 0.2s;
+  z-index: 50;
+}
+.btt.show { opacity: 1; transform: translateY(0); }
+.btt:hover { background: var(--surface-3); color: var(--accent); border-color: rgba(78,205,196,0.3); }
+
+/* ═══ RESPONSIVE ═══ */
+@media (max-width: 600px) {
+  .container { padding: 0 1.2rem 5rem; }
+  section > h2 { font-size: 1.6rem; }
+  .pipe-split-row { grid-template-columns: 1fr; }
+  .gf-cols, .gf-status-row { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ HERO ═══ -->
+<div class="hero">
+  <div class="hero-mesh"></div>
+  <div class="hero-lines"></div>
+  <div class="hero-content">
+    <div class="hero-idea-badge">
+      <span class="idea-dot"></span>
+      Idea 2 &mdash; Distribution-Fixed Loss
+    </div>
+    <div class="hero-tag">FAAP &middot; fix10 &middot; Gender Fairness &middot; DETR</div>
+    <h1>
+      <span class="glow-fixed">남성 분포 고정</span>,<br>
+      여성만 <span class="glow">이동시키는</span> Loss
+    </h1>
+    <p class="hero-desc">
+      교수님 피드백 반영: contrastive learning 유지, Wasserstein 제거,<br>
+      <strong style="color:var(--green)">Stability Loss</strong>로 남성 feature를 모든 경로에서 명시적으로 고정
+    </p>
+    <div class="hero-chips">
+      <span class="chip removed">Wasserstein Loss</span>
+      <span class="chip removed">단방향 relu 정렬</span>
+      <span class="chip new">L_contrastive (Gaussian kernel)</span>
+      <span class="chip key">L_stability (NEW)</span>
+      <span class="chip">L_det 유지</span>
+      <span class="chip">dual DETR forward</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ NAV ═══ -->
+<nav class="nav">
+  <div class="nav-progress" id="navProgress"></div>
+  <div class="nav-inner">
+    <a class="nav-link" href="#motivation">01 Motivation</a>
+    <a class="nav-link" href="#overview">02 Overview</a>
+    <a class="nav-link" href="#pipeline">03 Pipeline</a>
+    <a class="nav-link" href="#contrastive">04 Contrastive</a>
+    <a class="nav-link" href="#stability">05 Stability</a>
+    <a class="nav-link" href="#detection">06 Detection</a>
+    <a class="nav-link" href="#total">07 Total Loss</a>
+    <a class="nav-link" href="#gradflow">08 Grad Flow</a>
+    <a class="nav-link" href="#comparison">09 fix8 vs fix10</a>
+    <a class="nav-link" href="#qa">10 Q&amp;A</a>
+  </div>
+</nav>
+
+<!-- ═══ CONTENT ═══ -->
+<div class="container">
+
+<!-- ─── 01 MOTIVATION ─── -->
+<section id="motivation">
+  <div class="sec-label">01 &middot; Motivation</div>
+  <h2>왜 남성 분포를 고정해야 하는가</h2>
+
+  <div class="callout">
+    <div class="callout-icon">💬</div>
+    <div class="callout-body">
+      <strong>교수님 피드백 (핵심 요약)</strong><br>
+      "contrastive learning은 남기되, Wasserstein은 제거해라. 그리고 <em>남성 분포가 움직이지 않도록</em> loss에서 명시적으로 보장해야 한다."
+    </div>
+  </div>
+
+  <p>기존 fix8의 Score-Weighted Contrastive Loss는 여성 feature를 남성 feature 방향으로 당기는 역할을 한다. 그런데 이 구조에서 <strong>남성 feature가 실제로 고정되는가?</strong></p>
+
+  <div class="card card-warm">
+    <h4>fix8의 한계: detach()만으로는 부족하다</h4>
+    <p>fix8에서는 contrastive loss의 positive target (남성 feature)에 <code>sg(&middot;)</code> = <code>.detach()</code>를 붙인다. 이는 <em>contrastive loss를 통한 gradient</em>가 남성 쪽으로 역전파되지 않도록 차단한다.</p>
+    <p style="margin-bottom:0;">하지만 남성 이미지도 Generator를 통과하며 perturbation을 받는다. Detection loss($\mathcal{L}_{det}$) 등 <strong>다른 경로</strong>를 통해 남성 feature가 여전히 변할 수 있다. <code>detach()</code>는 특정 loss의 gradient path만 선택적으로 차단할 뿐이다.</p>
+  </div>
+
+  <div class="insight">
+    <div class="insight-icon">💡</div>
+    <div class="insight-text">
+      <strong>핵심 통찰</strong>: 남성 feature가 <em>모든 경로에서 실제로 변하지 않는다</em>는 것을 보장하려면, feature 자체의 변화량에 직접 패널티를 주는 별도 loss가 필요하다. 이것이 <strong>$\mathcal{L}_{\text{stab}}$</strong> 도입의 동기다.
+    </div>
+  </div>
+
+  <div class="card card-accent">
+    <h4>fix10의 한 줄 요약</h4>
+    <p style="margin:0; font-size: 1.05rem; color: var(--text);">
+      <strong>"여성 feature만 남성 방향으로 이동시키되, 남성 분포는 고정한다."</strong>
+    </p>
+  </div>
+</section>
+
+<!-- ─── 02 OVERVIEW ─── -->
+<section id="overview">
+  <div class="sec-label">02 &middot; Overview</div>
+  <h2>3-Component Loss 구조</h2>
+
+  <div class="loss-grid">
+    <div class="loss-card con">
+      <span class="loss-idx">1</span>
+      <span class="loss-symbol">$\mathcal{L}_{\text{con}}$</span>
+      <div class="loss-name">Contrastive Loss</div>
+      <div class="loss-desc">여성 &rarr; 남성 feature 정렬. Gaussian kernel 가중치 + target detach.</div>
+    </div>
+    <div class="loss-card stab">
+      <span class="loss-idx">2</span>
+      <span class="loss-symbol">$\mathcal{L}_{\text{stab}}$</span>
+      <div class="loss-name">Stability Loss</div>
+      <div class="loss-desc">남성 feature 변화 억제. perturbed vs original MSE. <strong>신규 핵심 요소.</strong></div>
+    </div>
+    <div class="loss-card det">
+      <span class="loss-idx">3</span>
+      <span class="loss-symbol">$\mathcal{L}_{\text{det}}$</span>
+      <div class="loss-name">Detection Loss</div>
+      <div class="loss-desc">전체 검출 성능 보존. DETR criterion 원본 그대로.</div>
+    </div>
+  </div>
+
+  <div class="math-block glow">
+    <div class="math-label">Total Generator Loss</div>
+    $$\mathcal{L} = \lambda_{\text{con}} \cdot w(e) \cdot \mathcal{L}_{\text{con}} + \lambda_{\text{stab}} \cdot \mathcal{L}_{\text{stab}} + \beta(e) \cdot \mathcal{L}_{\text{det}}$$
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>손실 항</th><th>역할</th><th>대상 성별</th><th>스케줄</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="t-accent">$\mathcal{L}_{\text{con}}$</td>
+          <td>여성 feature를 남성 방향으로 정렬</td>
+          <td>Female (anchor), Male (target, sg)</td>
+          <td>$w(e)$ epoch 가중치</td>
+        </tr>
+        <tr>
+          <td class="t-green">$\mathcal{L}_{\text{stab}}$</td>
+          <td>남성 feature 변화를 명시적 억제</td>
+          <td>Male only</td>
+          <td>constant $\lambda_{\text{stab}}$</td>
+        </tr>
+        <tr>
+          <td class="t-gold">$\mathcal{L}_{\text{det}}$</td>
+          <td>전체 검출 성능 보존</td>
+          <td>All</td>
+          <td>$\beta(e)$ 선형 증가</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout green">
+    <div class="callout-icon">🗑</div>
+    <div class="callout-body">
+      <strong>Wasserstein 제거 이유</strong>: 교수님 지시에 따라 완전 제거. Wasserstein은 score 공간에서의 간접적 분포 정렬로, feature 공간에서 직접 남성 분포를 고정하는 $\mathcal{L}_{\text{stab}}$이 목적에 더 부합하고 해석이 명확하다.
+    </div>
+  </div>
+</section>
+
+<!-- ─── 03 PIPELINE ─── -->
+<section id="pipeline">
+  <div class="sec-label">03 &middot; Pipeline</div>
+  <h2>Dual DETR Forward Pass</h2>
+
+  <p><strong>fix10의 핵심 구조 변화</strong>: Stability Loss를 계산하려면 원본(non-perturbed) 이미지에서의 남성 feature가 필요하다. Generator update 시 <strong>DETR forward pass가 2회</strong> 실행된다.</p>
+
+  <div class="pipeline">
+    <div class="pipeline-title">fix10 &middot; Generator Update Pipeline</div>
+
+    <div class="pipe-row">
+      <div class="pipe-node teal">
+        Input Batch
+        <span class="node-sub">male + female images</span>
+      </div>
+      <div class="pipe-arrow">&rarr;</div>
+      <div class="pipe-node teal">
+        Generator $G$
+        <span class="node-sub">learns $\delta$, $\|\delta\|_\infty \leq \varepsilon$</span>
+      </div>
+      <div class="pipe-arrow">&rarr;</div>
+      <div class="pipe-node teal">
+        Perturbed Images
+        <span class="node-sub">$x + \delta$ (male &amp; female)</span>
+      </div>
+    </div>
+
+    <div style="text-align:center; color:var(--text-faint); font-size:0.82rem; margin:0.8rem 0;">
+      &darr; two parallel DETR forwards &darr;
+    </div>
+
+    <div class="pipe-split-row">
+      <div class="pipe-split-box">
+        <div class="box-title" style="color:var(--accent);">
+          Path A &mdash; Perturbed
+          <span class="pipe-badge grad-on" style="margin-left:0.5rem;">grad ON</span>
+        </div>
+        <div class="box-body">
+          DETR (frozen params) forward on $x + \delta$<br>
+          &rarr; $f^{\text{pert}}_F$, $f^{\text{pert}}_M$, pred_logits, pred_boxes<br>
+          &rarr; <span style="color:var(--accent);">$\mathcal{L}_{\text{con}}$</span> (female anchor, male sg)<br>
+          &rarr; <span style="color:var(--green);">$\mathcal{L}_{\text{stab}}$</span> input: $f^{\text{pert}}_M$ (grad flows)<br>
+          &rarr; <span style="color:var(--gold);">$\mathcal{L}_{\text{det}}$</span> (all outputs)
+        </div>
+      </div>
+      <div class="pipe-split-box">
+        <div class="box-title" style="color:var(--warm);">
+          Path B &mdash; Original
+          <span class="pipe-badge no-grad" style="margin-left:0.5rem;">no_grad</span>
+        </div>
+        <div class="box-body">
+          DETR (frozen params) forward on original $x_M$<br>
+          &rarr; $f^{\text{orig}}_M$ only (male features)<br>
+          &rarr; <span style="color:var(--green);">$\mathcal{L}_{\text{stab}}$</span> target: <code>.detach()</code><br>
+          &rarr; backward 없음 (frozen reference)<br>
+          &rarr; 추가 메모리: male feature 텐서만
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout gold">
+    <div class="callout-icon">⚡</div>
+    <div class="callout-body">
+      <strong>구현 포인트</strong>: Path B는 <code>torch.no_grad()</code> 블록 안에서 실행되므로 activation이 저장되지 않는다. male sample만 forward하므로 추가 연산 비용은 배치의 ~50% 분량의 DETR forward 1회로 제한된다.
+    </div>
+  </div>
+</section>
+
+<!-- ─── 04 CONTRASTIVE ─── -->
+<section id="contrastive">
+  <div class="sec-label">04 &middot; Contrastive Loss</div>
+  <h2>Score-Weighted Contrastive Loss</h2>
+
+  <p>fix8에서 검증된 구조를 유지. 여성 feature를 anchor, 남성 feature를 positive target으로 하여 feature 공간에서 정렬한다. fix10에서의 변경점은 이산 quality bin을 <strong>연속 Gaussian kernel</strong>로 교체한 것이다.</p>
+
+  <h3>Gaussian Kernel 가중치</h3>
+  <p>anchor(female)와 positive(male)의 detection score 차이에 기반하여 연속적인 쌍별 가중치를 부여한다.</p>
+
+  <div class="math-block glow">
+    <div class="math-label">Pairwise Weight — Gaussian Kernel</div>
+    $$w(a, p) = \exp\!\left(-\frac{(s_a - s_p)^2}{2\sigma^2}\right)$$
+  </div>
+
+  <p>$s_a$, $s_p$: anchor(female)와 positive(male)의 detection score. Score 차이가 작을수록 $w \to 1$, 클수록 $w \to 0$으로 부드럽게 감소한다. $\sigma$로 가중치 폭을 조절.</p>
+
+  <h3>Target Detach (sg 연산자)</h3>
+
+  <div class="math-block">
+    <div class="math-label">Asymmetric Similarity — target detached</div>
+    $$\text{sim}(a, p) = \frac{z_a^\top \cdot \texttt{sg}(z_p)}{\tau}$$
+  </div>
+
+  <p>$z_a$, $z_p$: projection head를 거친 L2-normalized feature 벡터. $\tau$: temperature. $\texttt{sg}(\cdot)$: <code>.detach()</code>. 이로써 contrastive loss의 gradient는 여성 feature ($z_a$)에만 흐르고 남성 feature ($z_p$)에는 흐르지 않는다.</p>
+
+  <h3>Contrastive Loss 공식</h3>
+
+  <div class="math-block glow">
+    <div class="math-label">L_contrastive</div>
+    $$\mathcal{L}_{\text{con}} = -\!\sum_{(a,p)} w(a,p) \cdot \log \frac{\exp(\text{sim}(a,p))}{\exp(\text{sim}(a,p)) + \displaystyle\sum_{n \in \mathcal{N}} \exp(\text{sim}(a,n))}$$
+  </div>
+
+  <p>$\mathcal{N}$: negative 집합 (same-gender, 여성-여성 쌍). 이 loss는 <strong>여성 feature에만 gradient를 생성</strong>하며, 남성 feature는 fixed target으로만 사용된다.</p>
+
+  <div class="code-block"><span class="tag">python</span><span class="cm"># Score-Weighted Contrastive Loss — fix10</span>
+<span class="kw">def</span> <span class="fn">score_weighted_contrastive</span>(z_f, z_m, s_f, s_m, tau=<span class="nm">0.07</span>, sigma=<span class="nm">0.3</span>):
+    <span class="cm"># z_f: (N_f, D), z_m: (N_m, D) — L2 normalized</span>
+    <span class="cm"># s_f: (N_f,), s_m: (N_m,) — detection scores</span>
+
+    <span class="cm"># Stop gradient on male features (contrastive path only)</span>
+    z_m_sg = z_m.<span class="fn">detach</span>()                                    <span class="cm"># (N_m, D)</span>
+
+    <span class="cm"># Gaussian kernel: weight for each (female_i, male_j) pair</span>
+    s_diff_sq = (s_f.<span class="fn">unsqueeze</span>(<span class="nm">1</span>) - s_m.<span class="fn">unsqueeze</span>(<span class="nm">0</span>)) ** <span class="nm">2</span>   <span class="cm"># (N_f, N_m)</span>
+    weights   = <span class="fn">torch.exp</span>(-s_diff_sq / (<span class="nm">2</span> * sigma ** <span class="nm">2</span>))         <span class="cm"># (N_f, N_m)</span>
+
+    <span class="cm"># Positive similarity: each female paired with closest male</span>
+    sim_pos = (z_f * z_m_sg.<span class="fn">mean</span>(<span class="nm">0</span>, keepdim=<span class="kw">True</span>)).<span class="fn">sum</span>(-<span class="nm">1</span>) / tau  <span class="cm"># (N_f,)</span>
+
+    <span class="cm"># Negative similarity: female-female (intra-gender)</span>
+    sim_neg = (z_f @ z_f.<span class="fn">T</span>) / tau                                  <span class="cm"># (N_f, N_f)</span>
+    sim_neg.<span class="fn">fill_diagonal_</span>(-<span class="fn">float</span>(<span class="st">'inf'</span>))                        <span class="cm"># exclude self</span>
+
+    logits = <span class="fn">torch.cat</span>([sim_pos.<span class="fn">unsqueeze</span>(<span class="nm">1</span>), sim_neg], dim=<span class="nm">1</span>)   <span class="cm"># (N_f, 1+N_f)</span>
+    labels = <span class="fn">torch.zeros</span>(len(z_f), dtype=<span class="fn">torch.long</span>, device=z_f.device)
+
+    loss = F.<span class="fn">cross_entropy</span>(logits, labels, reduction=<span class="st">'none'</span>)       <span class="cm"># (N_f,)</span>
+    w_per_anchor = weights.<span class="fn">mean</span>(dim=<span class="nm">1</span>)                              <span class="cm"># (N_f,)</span>
+    <span class="kw">return</span> (w_per_anchor * loss).<span class="fn">mean</span>()</div>
+
+  <div class="callout">
+    <div class="callout-icon">📌</div>
+    <div class="callout-body">
+      <strong>fix8 대비 변경점</strong>: 이산 quality bin (상/중/하) &rarr; 연속 Gaussian kernel. 경계에서의 gradient 불연속 문제 해소. $\sigma$ 단일 파라미터로 가중치 특성 제어 가능.
+    </div>
+  </div>
+</section>
+
+<!-- ─── 05 STABILITY ─── -->
+<section id="stability">
+  <div class="sec-label">05 &middot; Stability Loss</div>
+  <h2>Male Feature Stability Loss</h2>
+
+  <div class="stability-box">
+    <div class="stability-box-title">fix10의 핵심 신규 요소</div>
+    <p style="color:var(--text-dim); margin-bottom:0;">
+      남성 feature가 perturbation에 의해 변하지 않도록 <strong>명시적 패널티</strong>를 부여한다.
+      <code>detach()</code>로 차단할 수 없는 모든 gradient 경로를 통한 변화까지 억제한다.
+    </p>
+  </div>
+
+  <h3 class="green">직관적 이해</h3>
+  <p>Generator가 남성 이미지에 perturbation $\delta_M$을 추가하면 DETR이 추출하는 남성 feature가 미묘하게 달라진다. 이 변화가 작더라도 contrastive loss의 "이동 타겟"이 흔들리는 문제가 생긴다. Stability Loss는 이 현상을 직접 패널티로 억제한다.</p>
+
+  <div class="math-block glow-green">
+    <div class="math-label">L_stability — Male Feature MSE</div>
+    $$\mathcal{L}_{\text{stab}} = \text{MSE}\!\left(f^{\text{pert}}_M,\; \texttt{sg}\!\left(f^{\text{orig}}_M\right)\right) = \frac{1}{N_M \cdot D} \sum_{i=1}^{N_M} \left\| f^{\text{pert}}_{M,i} - \texttt{sg}\!\left(f^{\text{orig}}_{M,i}\right) \right\|_2^2$$
+  </div>
+
+  <p>$f^{\text{pert}}_M$: perturbed 남성 이미지의 DETR feature (gradient 있음 &rarr; Generator로 역전파). $f^{\text{orig}}_M$: 원본 남성 이미지의 DETR feature (<code>torch.no_grad()</code> + <code>.detach()</code>로 완전 차단).</p>
+
+  <h3 class="green">구현: 추가 Forward Pass</h3>
+
+  <div class="code-block"><span class="tag">python · generator update</span><span class="cm"># ── Step 1: Get frozen male reference features (no gradient) ──────</span>
+<span class="kw">with</span> torch.<span class="fn">no_grad</span>():
+    _, f_orig_m = detr.<span class="fn">forward_with_features</span>(original_male_images)
+    f_orig_m = f_orig_m.<span class="fn">detach</span>()          <span class="cm"># (N_m, Q, D) — reference</span>
+
+<span class="cm"># ── Step 2: Generate perturbations ────────────────────────────────</span>
+delta_m = generator(male_images)           <span class="cm"># (N_m, C, H, W)</span>
+delta_f = generator(female_images)         <span class="cm"># (N_f, C, H, W)</span>
+
+perturbed_m = (male_images   + delta_m).<span class="fn">clamp</span>(<span class="nm">0</span>, <span class="nm">1</span>)
+perturbed_f = (female_images + delta_f).<span class="fn">clamp</span>(<span class="nm">0</span>, <span class="nm">1</span>)
+
+<span class="cm"># ── Step 3: DETR forward on perturbed (grad ON) ───────────────────</span>
+outputs_m, f_pert_m = detr.<span class="fn">forward_with_features</span>(perturbed_m)
+outputs_f, f_pert_f = detr.<span class="fn">forward_with_features</span>(perturbed_f)
+
+<span class="cm"># ── Step 4: Compute losses ────────────────────────────────────────</span>
+<span class="hl">L_stab = F.<span class="fn">mse_loss</span>(f_pert_m, f_orig_m)   <span class="cm"># grad flows to G via f_pert_m</span></span>
+
+L_con  = <span class="fn">score_weighted_contrastive</span>(
+    z_f=proj(f_pert_f), z_m=proj(f_pert_m),
+    s_f=scores_f, s_m=scores_m
+)
+
+outputs_all = <span class="fn">merge_outputs</span>(outputs_m, outputs_f)
+L_det, _    = detr.criterion(outputs_all, targets_all)
+
+<span class="cm"># ── Step 5: Total loss & backward ─────────────────────────────────</span>
+L = lambda_con * w_e * L_con + lambda_stab * L_stab + beta_e * L_det
+optimizer_g.<span class="fn">zero_grad</span>()
+L.<span class="fn">backward</span>()
+<span class="fn">clip_grad_norm_</span>(generator.<span class="fn">parameters</span>(), max_norm=<span class="nm">0.1</span>)
+optimizer_g.<span class="fn">step</span>()</div>
+
+  <h3 class="green">Gradient 경로</h3>
+  <p>$\mathcal{L}_{\text{stab}}$에서 gradient가 흐르는 경로:</p>
+
+  <div class="card card-green">
+    <p style="margin:0; font-family:'Fira Code',monospace; font-size:0.8rem; color:var(--text-dim); line-height:2.1;">
+      $\mathcal{L}_{\text{stab}} = \text{MSE}(f^{\text{pert}}_M,\; f^{\text{orig}}_M)$<br>
+      &nbsp;&nbsp;&darr; <span style="color:var(--green);">&part;L / &part;f^{pert}_M</span> (gradient flows HERE)<br>
+      &nbsp;&nbsp;&darr; DETR backbone (frozen: no param update, but passes gradients)<br>
+      &nbsp;&nbsp;&darr; <span style="color:var(--accent);">&part;f^{pert}_M / &part;&delta;_M</span><br>
+      &nbsp;&nbsp;&darr; Generator $G$ &mdash; <strong style="color:var(--green);">parameters updated</strong><br>
+      &nbsp;&nbsp;&times; $f^{\text{orig}}_M$ side: <span style="color:var(--warm);">no_grad + detach &rarr; zero gradient</span>
+    </p>
+  </div>
+
+  <div class="callout green">
+    <div class="callout-icon">🔑</div>
+    <div class="callout-body">
+      <strong>왜 MSE인가?</strong> feature vector의 방향과 크기를 모두 유지한다. Cosine similarity 기반 loss는 방향만 보존하므로 feature scale이 달라질 수 있다. 남성 분포를 진정으로 고정하려면 MSE가 더 강한 제약이다.
+    </div>
+  </div>
+</section>
+
+<!-- ─── 06 DETECTION ─── -->
+<section id="detection">
+  <div class="sec-label">06 &middot; Detection Loss</div>
+  <h2>Detection Loss (변경 없음)</h2>
+
+  <p>fix8과 동일하게 DETR 원본 criterion을 사용한다. Perturbation 학습 중 검출 성능이 저하되지 않도록 anchor 역할을 한다.</p>
+
+  <div class="math-block glow-gold">
+    <div class="math-label">L_det — DETR Criterion</div>
+    $$\mathcal{L}_{\text{det}} = \mathcal{L}_{\text{cls}} + \mathcal{L}_{\text{bbox}} + \mathcal{L}_{\text{giou}}$$
+  </div>
+
+  <div class="card card-gold">
+    <h4>Beta 스케줄링 (선형 증가)</h4>
+    <p>학습 초반에는 fairness 개선에 집중하고, 후반으로 갈수록 detection 성능 보존 비중을 높인다.</p>
+    <div class="math-block" style="margin: 0.8rem 0 0;">
+      <div class="math-label">Beta Schedule</div>
+      $$\beta(e) = \beta_{\text{start}} + (\beta_{\text{end}} - \beta_{\text{start}}) \cdot \frac{e}{E - 1}, \quad \beta_{\text{start}} = 0.5,\; \beta_{\text{end}} = 0.6$$
+    </div>
+  </div>
+</section>
+
+<!-- ─── 07 TOTAL LOSS ─── -->
+<section id="total">
+  <div class="sec-label">07 &middot; Total Loss</div>
+  <h2>전체 Loss 공식 및 하이퍼파라미터</h2>
+
+  <div class="math-block glow" style="padding: 2rem 2.5rem;">
+    <div class="math-label">Fix10 — Total Generator Loss</div>
+    $$\boxed{\mathcal{L} = \underbrace{\lambda_{\text{con}} \cdot w(e) \cdot \mathcal{L}_{\text{con}}}_{\substack{\text{여성을 남성}\\\text{방향으로 이동}}} + \underbrace{\lambda_{\text{stab}} \cdot \mathcal{L}_{\text{stab}}}_{\substack{\text{남성 분포}\\\text{명시적 고정}}} + \underbrace{\beta(e) \cdot \mathcal{L}_{\text{det}}}_{\substack{\text{검출 성능}\\\text{보존}}}$$}
+  </div>
+
+  <h3>하이퍼파라미터 요약</h3>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>파라미터</th><th>기본값</th><th>역할</th><th>비고</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="t-accent">$\lambda_{\text{con}}$</td><td>1.0</td><td>Contrastive loss 가중치</td><td>fix8과 동일</td></tr>
+        <tr><td class="t-green">$\lambda_{\text{stab}}$</td><td>0.5</td><td>Stability loss 가중치</td><td>신규 · 튜닝 필요</td></tr>
+        <tr><td class="t-gold">$\beta_{\text{start}}$</td><td>0.5</td><td>Detection 가중치 시작</td><td>선형 증가</td></tr>
+        <tr><td class="t-gold">$\beta_{\text{end}}$</td><td>0.6</td><td>Detection 가중치 종료</td><td></td></tr>
+        <tr><td>$\tau$</td><td>0.07</td><td>Contrastive temperature</td><td></td></tr>
+        <tr><td>$\sigma$</td><td>0.3</td><td>Gaussian kernel 폭</td><td>신규 파라미터</td></tr>
+        <tr><td>$w(e)$</td><td>warmup schedule</td><td>Contrastive epoch 가중치</td><td>초반 안정화</td></tr>
+        <tr><td>$\varepsilon$</td><td>0.05 &rarr; 0.10</td><td>Perturbation 크기 상한</td><td>3단계 스케줄</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout gold">
+    <div class="callout-icon">⚠️</div>
+    <div class="callout-body">
+      <strong>$\lambda_{\text{stab}}$ 튜닝 주의사항</strong>: 너무 크면 Generator가 남성에 $\delta_M \approx 0$을 출력하도록 강제되어 detection loss와 충돌 가능. 너무 작으면 stability 효과 미미. <strong>초기 권장값: 0.3~0.5</strong>. 학습 초기 $\mathcal{L}_{\text{stab}}$ 수렴 속도를 모니터링하며 조정.
+    </div>
+  </div>
+</section>
+
+<!-- ─── 08 GRAD FLOW ─── -->
+<section id="gradflow">
+  <div class="sec-label">08 &middot; Gradient Flow</div>
+  <h2>남성 feature가 모든 경로에서 고정되는가</h2>
+
+  <p>fix8과 fix10의 가장 중요한 차이를 gradient 흐름으로 확인한다. 남성 feature에 도달하는 모든 gradient 경로를 나열하고, 각각이 어떻게 처리되는지 보인다.</p>
+
+  <div class="grad-flow">
+    <div class="gf-header">Gradient Flow Map &middot; fix10 &middot; male features</div>
+
+    <div class="gf-cols">
+      <div class="gf-col-label" style="color:var(--accent);">$\mathcal{L}_{\text{con}}$</div>
+      <div class="gf-col-label" style="color:var(--green);">$\mathcal{L}_{\text{stab}}$</div>
+      <div class="gf-col-label" style="color:var(--gold);">$\mathcal{L}_{\text{det}}$</div>
+    </div>
+
+    <div class="gf-status-row">
+      <div class="gf-status blocked">
+        <div class="st-label" style="color:var(--warm);">BLOCKED</div>
+        <div class="st-desc">sg(z_m) detach<br>contrastive path 차단</div>
+      </div>
+      <div class="gf-status penalized">
+        <div class="st-label" style="color:var(--green);">PENALIZED</div>
+        <div class="st-desc">MSE loss &rarr; G directly<br>변화 자체를 억제</div>
+      </div>
+      <div class="gf-status indirect">
+        <div class="st-label" style="color:var(--gold);">INDIRECT</div>
+        <div class="st-desc">일부 남성 변화 유발<br>L_stab이 counteract</div>
+      </div>
+    </div>
+
+    <div class="gf-arrow-row">
+      &darr; gradient reaches Generator $G$
+    </div>
+
+    <div class="gf-g-box">
+      <div class="gf-g-title">Generator $G$ Update Signals</div>
+      <div class="gf-g-signals">
+        <span style="color:var(--accent);">Contrastive</span>: 여성 perturbation만 여성&rarr;남성 방향으로
+        &nbsp;&nbsp;|&nbsp;&nbsp;
+        <span style="color:var(--green);">Stability</span>: 남성 perturbation을 0 방향으로 압박
+        &nbsp;&nbsp;|&nbsp;&nbsp;
+        <span style="color:var(--gold);">Detection</span>: 모든 perturbation에 성능 보존 신호
+      </div>
+    </div>
+
+    <div class="gf-legend">
+      <div class="gf-legend-item">
+        <div class="gf-legend-dot" style="background:var(--warm); opacity:0.7;"></div>
+        Gradient 차단 (detach)
+      </div>
+      <div class="gf-legend-item">
+        <div class="gf-legend-dot" style="background:var(--green);"></div>
+        Stability Loss 역전파 (명시적 억제)
+      </div>
+      <div class="gf-legend-item">
+        <div class="gf-legend-dot" style="background:var(--gold); opacity:0.8;"></div>
+        Detection Loss 역전파 (간접 경로)
+      </div>
+      <div class="gf-legend-item">
+        <div class="gf-legend-dot" style="background:var(--text-faint);"></div>
+        no_grad (reference, frozen)
+      </div>
+    </div>
+  </div>
+
+  <div class="insight">
+    <div class="insight-icon">🧮</div>
+    <div class="insight-text">
+      <strong>fix8 vs fix10 핵심 차이</strong>: fix8에서는 <code>detach()</code>가 contrastive path만 차단하고, detection loss를 통한 남성 feature 변화는 방치된다. fix10에서는 <strong>$\mathcal{L}_{\text{stab}}$이 변화량에 직접 패널티를 부여</strong>하여, 어떤 loss 경로를 통하든 Generator가 남성 feature를 변화시키면 loss가 증가하도록 만든다.
+    </div>
+  </div>
+</section>
+
+<!-- ─── 09 COMPARISON ─── -->
+<section id="comparison">
+  <div class="sec-label">09 &middot; Comparison</div>
+  <h2>fix8 vs fix10 상세 비교</h2>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>항목</th>
+          <th class="t-warm">fix8</th>
+          <th class="t-accent">fix10</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>핵심 아이디어</strong></td>
+          <td>Score-Weighted Contrastive + 단방향 Wasserstein</td>
+          <td class="t-accent">Distribution-Fixed Loss (Stability 명시)</td>
+        </tr>
+        <tr>
+          <td><strong>Loss 구성</strong></td>
+          <td>$\mathcal{L}_{\text{con}}$ + $\mathcal{L}_{\text{wass}}$ + $\mathcal{L}_{\text{det}}$</td>
+          <td class="t-accent">$\mathcal{L}_{\text{con}}$ + $\mathcal{L}_{\text{stab}}$ + $\mathcal{L}_{\text{det}}$</td>
+        </tr>
+        <tr>
+          <td><strong>Wasserstein Loss</strong></td>
+          <td class="t-warm">있음 (score 공간 분포 정렬)</td>
+          <td><span class="t-strike t-warm">제거</span> — 교수님 지시</td>
+        </tr>
+        <tr>
+          <td><strong>남성 feature 고정</strong></td>
+          <td class="t-warm">detach() 일부 차단만 — 불완전</td>
+          <td class="t-green">$\mathcal{L}_{\text{stab}}$ + detach() — 명시적 강제</td>
+        </tr>
+        <tr>
+          <td><strong>Contrastive 가중치</strong></td>
+          <td>이산 quality bin (상/중/하)</td>
+          <td class="t-accent">연속 Gaussian kernel $w(a,p)$</td>
+        </tr>
+        <tr>
+          <td><strong>DETR forward 횟수</strong></td>
+          <td>1회 (perturbed only)</td>
+          <td class="t-green">2회 (perturbed + original)</td>
+        </tr>
+        <tr>
+          <td><strong>신규 파라미터</strong></td>
+          <td>$\lambda_w$, quality bins</td>
+          <td class="t-accent">$\lambda_{\text{stab}}$, $\sigma$</td>
+        </tr>
+        <tr>
+          <td><strong>해석 가능성</strong></td>
+          <td>Wasserstein: 설명 어려움</td>
+          <td class="t-accent">MSE: 직관적 (feature distance)</td>
+        </tr>
+        <tr>
+          <td><strong>교수님 피드백 반영</strong></td>
+          <td class="t-warm">부분적</td>
+          <td class="t-green">완전 반영</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="vs-grid">
+    <div class="vs-card old">
+      <div class="vs-tag">fix8 &mdash; 한계점</div>
+      <ul class="vs-list">
+        <li>detach()는 contrastive path만 차단; detection loss 등 다른 경로로 남성 feature 변화 가능</li>
+        <li>Wasserstein: score 공간 정렬이라 feature 공간 효과 간접적이고 불투명</li>
+        <li>이산 quality bin: 경계에서 gradient 불연속, 민감도 높음</li>
+        <li>교수님 피드백 (Wasserstein 제거) 미반영</li>
+      </ul>
+    </div>
+    <div class="vs-divider">&rarr;</div>
+    <div class="vs-card new">
+      <div class="vs-tag">fix10 &mdash; 개선점</div>
+      <ul class="vs-list">
+        <li>$\mathcal{L}_{\text{stab}}$으로 남성 feature를 모든 gradient 경로에서 명시적 고정</li>
+        <li>Wasserstein 완전 제거 — 교수님 지시 완전 반영</li>
+        <li>Gaussian kernel — 연속적이고 부드러운 가중치, $\sigma$ 단일 파라미터 조절</li>
+        <li>Loss 목적 명확: 이동(con) + 고정(stab) + 보존(det) 3분리</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ─── 10 Q&A ─── -->
+<section id="qa">
+  <div class="sec-label">10 &middot; Q&amp;A</div>
+  <h2>예상 질문 답변</h2>
+
+  <div class="qa-item">
+    <div class="qa-q">
+      <span class="qa-q-num">Q1</span>
+      <span class="qa-q-text">Original forward pass를 추가하면 학습 속도가 많이 느려지지 않나요?</span>
+      <span class="qa-toggle">&#9660;</span>
+    </div>
+    <div class="qa-a">
+      <div class="qa-a-inner">
+        <p>실질적인 overhead는 생각보다 작다. Original forward는 <code>torch.no_grad()</code> 안에서 실행되므로 <strong>activation이 저장되지 않는다</strong>. DETR forward 계산만 추가되며 backward가 없다.</p>
+        <p>또한 남성 이미지의 feature만 필요하므로, 배치에서 male sample만 골라 forward하면 된다. 전체 학습 시간 증가는 약 20~30% 수준으로 예상되며, 이는 Wasserstein의 1D 정렬 + 보간 연산을 제거함으로써 일부 상쇄된다.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="qa-item">
+    <div class="qa-q">
+      <span class="qa-q-num">Q2</span>
+      <span class="qa-q-text">$\mathcal{L}_{\text{stab}}$이 너무 강하면 Generator가 남성에 아무 perturbation도 주지 않게 되지 않나요?</span>
+      <span class="qa-toggle">&#9660;</span>
+    </div>
+    <div class="qa-a">
+      <div class="qa-a-inner">
+        <p>정확한 지적이다. $\lambda_{\text{stab}}$이 지나치게 크면 Generator는 남성 입력에 대해 $\delta_M \approx 0$으로 수렴하려 한다. 이는 stability 목적에는 부합하지만 detection loss $\mathcal{L}_{\text{det}}$와 상충이 생길 수 있다.</p>
+        <p>실용적으로는: (1) 초기 $\lambda_{\text{stab}} = 0.3$으로 시작, (2) $\mathcal{L}_{\text{stab}}$ 값이 빠르게 $10^{-3}$ 이하로 수렴하면 줄이고, 수렴이 느리면 늘리는 방식으로 조정한다. $\mathcal{L}_{\text{det}}$와 균형을 모니터링하는 것이 핵심이다.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="qa-item">
+    <div class="qa-q">
+      <span class="qa-q-num">Q3</span>
+      <span class="qa-q-text">detach()만으로 충분하지 않다고 했는데, 구체적으로 어떤 경로로 남성 feature가 변할 수 있나요?</span>
+      <span class="qa-toggle">&#9660;</span>
+    </div>
+    <div class="qa-a">
+      <div class="qa-a-inner">
+        <p>$\mathcal{L}_{\text{det}}$를 통한 경로가 대표적이다. Detection loss는 male + female 배치 전체에 대해 계산되며, Generator가 male 이미지에 perturbation을 가하고 그 결과의 detection loss가 역전파된다. 이 경로에는 <code>detach()</code>가 적용되지 않는다.</p>
+        <p>$\mathcal{L}_{\text{stab}}$은 이러한 모든 경로의 결과를 한꺼번에 억제한다. 경로가 얼마나 많든 결국 <em>feature의 변화량</em>에 직접 패널티를 주기 때문이다. "어떤 경로를 통해 변했는가"와 무관하게, 변화 자체를 측정하여 억제한다.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="qa-item">
+    <div class="qa-q">
+      <span class="qa-q-num">Q4</span>
+      <span class="qa-q-text">Gaussian kernel의 $\sigma$는 어떻게 설정하고, 결과에 얼마나 민감한가요?</span>
+      <span class="qa-toggle">&#9660;</span>
+    </div>
+    <div class="qa-a">
+      <div class="qa-a-inner">
+        <p>Detection score는 0~1 범위이며, $\sigma = 0.3$으로 설정하면 score 차이 0.3 이내의 쌍은 weight $\geq e^{-0.5} \approx 0.6$을 갖고, 차이 0.6 이상은 $\leq 0.1$로 거의 무시된다.</p>
+        <p>실험적으로 $\sigma \in [0.2, 0.5]$ 범위에서 결과가 크게 달라지지 않는다. 너무 작으면 ($\sigma &lt; 0.1$) 대부분의 쌍이 무시되어 loss가 sparse해지고, 너무 크면 ($\sigma &gt; 0.8$) 모든 쌍이 동등하게 취급되어 uniform weight와 유사해진다. <strong>초기값 $\sigma = 0.3$을 권장</strong>하며, 이후 ablation으로 정밀 조정한다.</p>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+</div><!-- /.container -->
+
+<!-- Back to Top -->
+<a class="btt" href="#" id="btt" title="맨 위로">&#8593;</a>
+
+<script>
+// ── Progress bar & active nav ──────────────────────────────────────────────
+const navProgress = document.getElementById('navProgress');
+const sections    = document.querySelectorAll('section[id]');
+const navLinks    = document.querySelectorAll('.nav-link');
+
+function updateNav() {
+  const scrollTop  = window.scrollY;
+  const docHeight  = document.documentElement.scrollHeight - window.innerHeight;
+  const pct        = docHeight > 0 ? Math.min(100, (scrollTop / docHeight) * 100) : 0;
+  navProgress.style.width = pct + '%';
+
+  let current = '';
+  sections.forEach(s => {
+    if (scrollTop >= s.offsetTop - 130) current = s.id;
+  });
+  navLinks.forEach(l => {
+    l.classList.toggle('active', l.getAttribute('href') === '#' + current);
+  });
+}
+
+// ── Section reveal ─────────────────────────────────────────────────────────
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: 0.06 });
+sections.forEach(s => observer.observe(s));
+
+// ── Back to top ────────────────────────────────────────────────────────────
+const btt = document.getElementById('btt');
+function updateBtt() { btt.classList.toggle('show', window.scrollY > 400); }
+
+window.addEventListener('scroll', () => { updateNav(); updateBtt(); }, { passive: true });
+
+// ── Q&A accordion ──────────────────────────────────────────────────────────
+document.querySelectorAll('.qa-item').forEach(item => {
+  item.querySelector('.qa-q').addEventListener('click', () => {
+    const isOpen = item.classList.contains('open');
+    document.querySelectorAll('.qa-item.open').forEach(q => q.classList.remove('open'));
+    if (!isOpen) item.classList.add('open');
+  });
+});
+
+// ── Smooth scroll ──────────────────────────────────────────────────────────
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    const target = document.querySelector(a.getAttribute('href'));
+    if (target) {
+      e.preventDefault();
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  });
+});
+
+// ── Init ───────────────────────────────────────────────────────────────────
+updateNav();
+updateBtt();
+</script>
+</body>
+</html>

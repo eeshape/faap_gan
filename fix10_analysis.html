@@ -1,0 +1,1291 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FAAP fix10 — Score-Weighted Contrastive Fairness</title>
+<script>
+MathJax = {
+  tex: { inlineMath: [['$','$']], displayMath: [['$$','$$']] },
+  svg: { fontCache: 'global' }
+};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Noto+Sans+KR:wght@300;400;500;700;900&family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0f0f13;
+  --surface: #18181f;
+  --surface-2: #1e1e28;
+  --surface-3: #252532;
+  --text: #e4e4e8;
+  --text-dim: #8888a0;
+  --text-faint: #55556a;
+  --accent: #4ecdc4;
+  --accent-glow: rgba(78,205,196,0.15);
+  --warm: #ff6b6b;
+  --warm-glow: rgba(255,107,107,0.12);
+  --gold: #ffd93d;
+  --gold-dim: rgba(255,217,61,0.1);
+  --purple: #a78bfa;
+  --border: #2a2a3a;
+  --code-bg: #13131a;
+  --radius: 14px;
+  --shadow: 0 4px 30px rgba(0,0,0,0.4);
+  --shadow-glow: 0 0 40px rgba(78,205,196,0.06);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'Noto Sans KR', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1.8;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ═══ HERO ═══ */
+.hero {
+  min-height: 80vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.hero-mesh {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 50% 60% at 25% 40%, rgba(78,205,196,0.08), transparent),
+    radial-gradient(ellipse 40% 50% at 75% 60%, rgba(255,107,107,0.06), transparent),
+    radial-gradient(ellipse 60% 40% at 50% 20%, rgba(167,139,250,0.05), transparent);
+  animation: meshShift 12s ease-in-out infinite alternate;
+}
+
+@keyframes meshShift {
+  0% { filter: hue-rotate(0deg); }
+  100% { filter: hue-rotate(15deg); }
+}
+
+.hero-lines {
+  position: absolute;
+  inset: 0;
+  background-image:
+    repeating-linear-gradient(0deg, transparent, transparent 79px, rgba(255,255,255,0.015) 79px, rgba(255,255,255,0.015) 80px);
+  mask-image: radial-gradient(ellipse 80% 70% at 50% 50%, black, transparent);
+}
+
+.hero-content {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  padding: 4rem 2rem;
+}
+
+.hero-tag {
+  font-family: 'Fira Code', monospace;
+  font-size: 0.75rem;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--accent);
+  opacity: 0;
+  animation: slideUp 0.6s ease 0.1s forwards;
+}
+
+.hero h1 {
+  font-family: 'DM Serif Display', serif;
+  font-size: clamp(2.8rem, 6vw, 5rem);
+  font-weight: 400;
+  color: #fff;
+  line-height: 1.1;
+  margin: 1rem 0;
+  opacity: 0;
+  animation: slideUp 0.7s ease 0.25s forwards;
+}
+
+.hero h1 span.glow {
+  background: linear-gradient(135deg, var(--accent), var(--purple));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero-desc {
+  font-size: 1.05rem;
+  color: var(--text-dim);
+  font-weight: 300;
+  max-width: 580px;
+  margin: 0 auto 2.5rem;
+  opacity: 0;
+  animation: slideUp 0.7s ease 0.4s forwards;
+}
+
+.hero-chips {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  opacity: 0;
+  animation: slideUp 0.6s ease 0.55s forwards;
+}
+
+.chip {
+  font-family: 'Fira Code', monospace;
+  font-size: 0.7rem;
+  padding: 0.35rem 0.9rem;
+  border-radius: 100px;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  background: var(--surface);
+}
+
+.chip.removed {
+  border-color: rgba(255,107,107,0.3);
+  color: var(--warm);
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+.chip.new {
+  border-color: rgba(78,205,196,0.4);
+  color: var(--accent);
+  box-shadow: 0 0 12px rgba(78,205,196,0.08);
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ═══ NAV ═══ */
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(15,15,19,0.88);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
+}
+
+.nav-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent), var(--purple));
+  width: 0%;
+  transition: width 0.12s ease-out;
+}
+
+.nav-inner {
+  max-width: 1000px;
+  margin: 0 auto;
+  display: flex;
+  gap: 0.2rem;
+  padding: 0.5rem 1.5rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.nav-inner::-webkit-scrollbar { display: none; }
+
+.nav-link {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-faint);
+  text-decoration: none;
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+.nav-link:hover { color: var(--text-dim); background: var(--surface-2); }
+.nav-link.active { color: var(--accent); background: rgba(78,205,196,0.08); }
+
+/* ═══ CONTENT ═══ */
+.container {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 0 2rem 6rem;
+}
+
+section {
+  margin-top: 5rem;
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.5s, transform 0.5s;
+}
+section.visible { opacity: 1; transform: translateY(0); }
+
+.sec-label {
+  font-family: 'Fira Code', monospace;
+  font-size: 0.7rem;
+  color: var(--accent);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+  opacity: 0.6;
+  transition: opacity 0.3s;
+}
+
+section:hover .sec-label { opacity: 1; }
+
+section > h2 {
+  font-family: 'DM Serif Display', serif;
+  font-size: 1.9rem;
+  font-weight: 400;
+  color: #fff;
+  margin-bottom: 1.2rem;
+}
+
+h3 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 2.5rem 0 0.8rem;
+  padding-left: 1rem;
+  border-left: 3px solid var(--accent);
+}
+
+h4 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin: 1.5rem 0 0.5rem;
+  color: var(--text);
+}
+
+p { margin-bottom: 1rem; color: var(--text-dim); }
+p strong { color: var(--text); }
+
+/* ═══ CARDS ═══ */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.8rem;
+  margin: 1.5rem 0;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.card:hover { transform: translateY(-2px); box-shadow: var(--shadow-glow); }
+
+.card-accent { border-color: rgba(78,205,196,0.25); background: linear-gradient(135deg, var(--surface), rgba(78,205,196,0.03)); }
+.card-warm { border-color: rgba(255,107,107,0.2); background: linear-gradient(135deg, var(--surface), rgba(255,107,107,0.03)); }
+.card-gold { border-color: rgba(255,217,61,0.2); background: linear-gradient(135deg, var(--surface), rgba(255,217,61,0.03)); }
+.card-purple { border-color: rgba(167,139,250,0.2); background: linear-gradient(135deg, var(--surface), rgba(167,139,250,0.03)); }
+
+/* ═══ MATH ═══ */
+.math-block {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.5rem 2rem;
+  margin: 1.5rem 0;
+  overflow-x: auto;
+  text-align: center;
+}
+
+.math-block.glow {
+  border-color: rgba(78,205,196,0.3);
+  box-shadow: 0 0 30px rgba(78,205,196,0.05);
+  background: linear-gradient(135deg, var(--surface-2), rgba(78,205,196,0.04));
+}
+
+.math-label {
+  font-family: 'Fira Code', monospace;
+  font-size: 0.65rem;
+  color: var(--text-faint);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-bottom: 0.75rem;
+  text-align: left;
+}
+
+/* ═══ CODE ═══ */
+.code-block {
+  background: var(--code-bg);
+  font-family: 'Fira Code', monospace;
+  font-size: 0.8rem;
+  line-height: 1.7;
+  border-radius: 10px;
+  padding: 1.25rem 1.5rem;
+  margin: 1rem 0;
+  overflow-x: auto;
+  border: 1px solid rgba(255,255,255,0.04);
+  position: relative;
+  color: var(--text-dim);
+}
+
+.code-block .cm { color: #55556a; }
+.code-block .kw { color: #c678dd; }
+.code-block .fn { color: #61afef; }
+.code-block .st { color: #98c379; }
+.code-block .nm { color: #d19a66; }
+.code-block .tag { position: absolute; top: 0.5rem; right: 0.8rem; font-size: 0.6rem; color: var(--text-faint); letter-spacing: 1px; text-transform: uppercase; }
+
+code {
+  font-family: 'Fira Code', monospace;
+  font-size: 0.85em;
+  background: var(--surface-2);
+  padding: 0.15em 0.45em;
+  border-radius: 5px;
+  color: var(--accent);
+}
+
+/* ═══ TABLES ═══ */
+.table-wrap {
+  overflow-x: auto;
+  margin: 1.5rem 0;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+
+table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+
+thead { background: var(--surface-3); }
+th {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border);
+}
+
+td {
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  color: var(--text-dim);
+}
+
+tbody tr:hover { background: rgba(78,205,196,0.03); }
+.t-accent { color: var(--accent); font-weight: 600; }
+.t-warm { color: var(--warm); font-weight: 600; }
+.t-gold { color: var(--gold); font-weight: 600; }
+.t-strike { text-decoration: line-through; opacity: 0.4; }
+
+/* ═══ COMPARISON ═══ */
+.vs-grid {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 1.5rem;
+  align-items: start;
+  margin: 2rem 0;
+}
+@media (max-width: 700px) { .vs-grid { grid-template-columns: 1fr; } .vs-divider { display: none; } }
+
+.vs-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+}
+.vs-card.old { border-top: 3px solid var(--warm); }
+.vs-card.new { border-top: 3px solid var(--accent); }
+
+.vs-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'DM Serif Display', serif;
+  font-size: 1.5rem;
+  color: var(--text-faint);
+  padding-top: 2rem;
+}
+
+.vs-tag {
+  font-family: 'Fira Code', monospace;
+  font-size: 0.65rem;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 0.75rem;
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+}
+.vs-card.old .vs-tag { color: var(--warm); background: var(--warm-glow); }
+.vs-card.new .vs-tag { color: var(--accent); background: var(--accent-glow); }
+
+/* ═══ CALLOUT ═══ */
+.callout {
+  display: flex;
+  gap: 1rem;
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 1.2rem 1.5rem;
+  margin: 1.5rem 0;
+  border-left: 3px solid var(--accent);
+}
+.callout.warn { border-left-color: var(--gold); }
+.callout-icon { font-size: 1.2rem; flex-shrink: 0; }
+.callout-body { font-size: 0.9rem; color: var(--text-dim); }
+.callout-body strong { color: var(--text); }
+
+/* ═══ FLOW DIAGRAM ═══ */
+.flow {
+  display: flex;
+  gap: 0;
+  align-items: stretch;
+  margin: 2rem 0;
+  overflow-x: auto;
+  padding: 1rem 0;
+}
+
+.flow-step {
+  flex: 1;
+  min-width: 110px;
+  text-align: center;
+  padding: 1rem 0.6rem;
+  position: relative;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.4s, transform 0.4s;
+}
+
+.flow.animated .flow-step { opacity: 1; transform: translateY(0); }
+.flow.animated .flow-step:nth-child(1) { transition-delay: 0s; }
+.flow.animated .flow-step:nth-child(2) { transition-delay: 0.08s; }
+.flow.animated .flow-step:nth-child(3) { transition-delay: 0.16s; }
+.flow.animated .flow-step:nth-child(4) { transition-delay: 0.24s; }
+.flow.animated .flow-step:nth-child(5) { transition-delay: 0.32s; }
+
+.flow-step::after {
+  content: '';
+  position: absolute;
+  right: -1px;
+  top: 50%;
+  width: 16px;
+  height: 2px;
+  background: var(--border);
+}
+.flow-step::before {
+  content: '';
+  position: absolute;
+  right: -1px;
+  top: 50%;
+  transform: translateY(-50%) rotate(45deg);
+  width: 6px; height: 6px;
+  border-top: 2px solid var(--text-faint);
+  border-right: 2px solid var(--text-faint);
+}
+.flow-step:last-child::after,
+.flow-step:last-child::before { display: none; }
+
+.flow-icon {
+  width: 44px; height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 0.5rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  font-family: 'Fira Code', monospace;
+}
+.flow-icon.teal { background: var(--accent-glow); color: var(--accent); border: 1px solid rgba(78,205,196,0.2); }
+.flow-icon.red { background: var(--warm-glow); color: var(--warm); border: 1px solid rgba(255,107,107,0.2); }
+.flow-icon.purple { background: rgba(167,139,250,0.1); color: var(--purple); border: 1px solid rgba(167,139,250,0.2); }
+.flow-icon.gold { background: var(--gold-dim); color: var(--gold); border: 1px solid rgba(255,217,61,0.2); }
+
+.flow-title { font-weight: 700; font-size: 0.78rem; margin-bottom: 0.2rem; color: var(--text); }
+.flow-desc { font-size: 0.68rem; color: var(--text-faint); line-height: 1.4; }
+
+/* ═══ SCHEDULE BAR ═══ */
+.sch-bar {
+  display: flex;
+  border-radius: 8px;
+  overflow: hidden;
+  margin: 1rem 0 0.4rem;
+  height: 32px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #fff;
+}
+.sch-bar > div { display: flex; align-items: center; justify-content: center; }
+.sch-w { background: var(--accent); flex: 3; opacity: 0.7; }
+.sch-r { background: var(--purple); flex: 21; }
+
+.sch-labels {
+  display: flex;
+  font-size: 0.68rem;
+  color: var(--text-faint);
+  margin-bottom: 1.5rem;
+}
+.sch-labels span { flex: 1; text-align: center; }
+
+/* ═══ LISTS ═══ */
+.styled-list { list-style: none; margin: 0.5rem 0 1rem; }
+.styled-list li {
+  padding: 0.3rem 0 0.3rem 1.5rem;
+  position: relative;
+  color: var(--text-dim);
+}
+.styled-list li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.9rem;
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* ═══ BACK TOP ═══ */
+.back-top {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  width: 42px; height: 42px;
+  border-radius: 50%;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 1.1rem;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.3s, transform 0.3s, background 0.2s;
+  z-index: 99;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.back-top.show { opacity: 1; transform: translateY(0); }
+.back-top:hover { background: var(--accent); color: #fff; }
+
+/* ═══ FOOTER ═══ */
+footer {
+  text-align: center;
+  padding: 3rem 2rem;
+  color: var(--text-faint);
+  font-size: 0.8rem;
+  border-top: 1px solid var(--border);
+}
+
+/* ═══ RESPONSIVE ═══ */
+@media (max-width: 640px) {
+  .container { padding: 0 1.25rem 4rem; }
+  section { margin-top: 3.5rem; }
+  .card { padding: 1.25rem; }
+  .math-block { padding: 1rem; }
+  .hero h1 { font-size: 2.2rem; }
+  .table-wrap::after {
+    content: '← 스크롤 →';
+    display: block;
+    text-align: center;
+    font-size: 0.65rem;
+    color: var(--text-faint);
+    padding: 0.3rem 0;
+  }
+}
+
+@media print {
+  .nav, .back-top { display: none; }
+  body { background: #fff; color: #222; }
+  section { opacity: 1 !important; transform: none !important; }
+  .hero { background: #2c3e6b !important; min-height: auto; padding: 2rem; }
+  .card { border: 1px solid #ccc; background: #f9f9f9; box-shadow: none; }
+  .card:hover { transform: none; }
+  .math-block { background: #f5f5f5; border-color: #ddd; }
+  .code-block { background: #f0f0f0; color: #333; border: 1px solid #ddd; }
+  .flow-step { opacity: 1 !important; transform: none !important; }
+  .table-wrap { border-color: #ccc; }
+  thead { background: #eee; }
+  th, td { color: #333; border-bottom-color: #ddd; }
+  .t-accent { color: #0a7; }
+  .t-warm { color: #c33; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ HERO ═══ -->
+<header class="hero">
+  <div class="hero-mesh"></div>
+  <div class="hero-lines"></div>
+  <div class="hero-content">
+    <div class="hero-tag">Trustworthy AI Lab &mdash; Next Research</div>
+    <h1>FAAP fix10<br><span class="glow">Score-Weighted</span> Contrastive</h1>
+    <p class="hero-desc">
+      Wasserstein 거리를 제거하고, 이산 quality bin을 연속 Gaussian kernel로 대체하여
+      단일 목적의 공정성 loss로 통합합니다.
+    </p>
+    <div class="hero-chips">
+      <span class="chip new">Score-Weighted Contrastive</span>
+      <span class="chip">Detection Preservation</span>
+      <span class="chip removed">Wasserstein (제거)</span>
+      <span class="chip removed">Quality Bins (제거)</span>
+    </div>
+  </div>
+</header>
+
+<!-- ═══ NAV ═══ -->
+<nav class="nav" id="nav">
+  <div class="nav-progress" id="navProgress"></div>
+  <div class="nav-inner">
+    <a class="nav-link" href="#motivation">Motivation</a>
+    <a class="nav-link" href="#overview">Overview</a>
+    <a class="nav-link" href="#pipeline">Pipeline</a>
+    <a class="nav-link" href="#score-weight">Score Weight</a>
+    <a class="nav-link" href="#loss">Loss 수식</a>
+    <a class="nav-link" href="#detach">Detach 단방향</a>
+    <a class="nav-link" href="#why-no-wass">W거리 제거 근거</a>
+    <a class="nav-link" href="#total">Total Loss</a>
+    <a class="nav-link" href="#comparison">fix8 vs fix10</a>
+    <a class="nav-link" href="#schedule">Scheduling</a>
+    <a class="nav-link" href="#experiment">실험 설계</a>
+    <a class="nav-link" href="#qna">Q&A</a>
+  </div>
+</nav>
+
+<div class="container">
+
+<!-- ═══ 1. MOTIVATION ═══ -->
+<section id="motivation">
+  <div class="sec-label">01 &mdash; Motivation</div>
+  <h2>왜 fix10이 필요한가</h2>
+
+  <div class="card card-warm">
+    <h4>교수님 피드백 (3줄 요약)</h4>
+    <ul class="styled-list">
+      <li><strong>Loss 목적을 확실하게</strong> &mdash; "이 loss가 왜 필요한지 한 문장으로 설명할 수 있어야 한다"</li>
+      <li><strong>대조학습은 유지</strong> &mdash; contrastive learning 기반 접근을 계속 발전시킨다</li>
+      <li><strong>W1 거리는 제외</strong> &mdash; SupCon과 중복되므로 제거한다</li>
+    </ul>
+  </div>
+
+  <h3>fix8의 문제점</h3>
+
+  <div class="code-block">
+<span class="cm">// fix8: 3개 loss — 목적이 겹침</span>
+L_total = <span class="nm">λ_sc</span> · L_SupCon     <span class="cm">// "같은 bin의 cross-gender feature를 비슷하게"</span>
+        + <span class="nm">λ_w</span>  · L_Wass       <span class="cm">// "성별 간 score 분포를 맞춰라"</span>
+        + <span class="nm">β</span>    · L_Det        <span class="cm">// "검출 성능 유지"</span>
+
+<span class="cm">// 문제: SupCon과 Wass가 비슷한 일을 한다</span>
+<span class="cm">// 문제: quality bin이 score 기반 → 순환 의존</span>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>문제</th><th>설명</th></tr></thead>
+      <tbody>
+        <tr><td class="t-warm">Loss 목적 불명확</td><td>SupCon(feature 정렬)과 Wass(score 정렬)가 유사 역할 &mdash; "왜 둘 다 필요한가?"에 답 불가</td></tr>
+        <tr><td class="t-warm">순환 의존</td><td>SupCon의 quality bin이 score 기반 &rarr; Wass가 score 정렬하면 bin도 자동 정렬</td></tr>
+        <tr><td class="t-warm">하이퍼파라미터 과다</td><td>$\lambda_{\text{sc}}, \lambda_w, n_{\text{bins}}, \tau, \beta, E_{\text{warmup}}$ = 6개</td></tr>
+        <tr><td class="t-warm">Bin 경계 정보 손실</td><td>3개 이산 bin으로 연속 score를 잘라냄 &rarr; 경계 근처 샘플 오분류</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ═══ 2. OVERVIEW ═══ -->
+<section id="overview">
+  <div class="sec-label">02 &mdash; Overview</div>
+  <h2>fix10 핵심 설계</h2>
+
+  <div class="card card-accent">
+    <h4>Loss 목적 (한 문장)</h4>
+    <p style="font-size:1.1rem;color:var(--text);margin:0;font-weight:500">
+      "동일한 검출 품질의 이미지는 성별에 관계없이 유사한 feature representation을 가져야 한다."
+    </p>
+  </div>
+
+  <div class="code-block">
+<span class="cm">// fix10: 2개 loss — 각각 명확한 목적</span>
+L_total = <span class="nm">λ_con</span> · w(e) · L_Contrastive   <span class="cm">// 공정성: feature 정렬</span>
+        + <span class="nm">β(e)</span>         · L_Det            <span class="cm">// 성능 보존: 검출 유지</span>
+
+<span class="cm">// Wasserstein: 제거됨 (score 정보가 kernel weight에 통합)</span>
+<span class="cm">// Quality bin: 제거됨 (연속 Gaussian kernel로 대체)</span>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Loss</th><th>목적</th><th>한 줄 정의</th></tr></thead>
+      <tbody>
+        <tr><td class="t-accent">$\mathcal{L}_{\text{contrastive}}$</td><td class="t-accent">공정성</td><td>score가 유사한 cross-gender feature를 정렬</td></tr>
+        <tr><td class="t-gold">$\mathcal{L}_{\text{det}}$</td><td class="t-gold">성능 보존</td><td>perturbation이 검출 성능을 망가뜨리지 않도록</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ═══ 3. PIPELINE ═══ -->
+<section id="pipeline">
+  <div class="sec-label">03 &mdash; Pipeline</div>
+  <h2>전체 파이프라인</h2>
+
+  <p>fix8과 동일한 구조이나 <strong>loss 계산 단계</strong>가 단순화됩니다.</p>
+
+  <div class="card" style="overflow-x:auto">
+    <div class="flow" id="pipelineFlow">
+      <div class="flow-step">
+        <div class="flow-icon red">x</div>
+        <div class="flow-title">Input</div>
+        <div class="flow-desc">이미지 배치<br>(남녀 혼합)</div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-icon teal">G</div>
+        <div class="flow-title">Generator</div>
+        <div class="flow-desc">perturbation<br>$\delta = G(x)$</div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-icon purple">D</div>
+        <div class="flow-title">DETR</div>
+        <div class="flow-desc">frozen<br>features + scores</div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-icon teal">h</div>
+        <div class="flow-title">Proj Head</div>
+        <div class="flow-desc">128d embedding<br>L2 normalized</div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-icon gold">&Sigma;</div>
+        <div class="flow-title">Loss</div>
+        <div class="flow-desc">Contrastive<br>+ Detection</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="callout-icon">&#9889;</div>
+    <div class="callout-body">
+      <strong>fix8 대비 변경점:</strong> Loss 계산에서 Wasserstein 분기 전체가 제거됩니다.
+      <code>_wasserstein_1d_unidirectional()</code>, <code>_resize_sorted()</code> 함수 삭제.
+      quality bin 할당 로직(<code>torch.quantile</code>, <code>torch.bucketize</code>)도 Gaussian kernel로 대체됩니다.
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 4. SCORE WEIGHT ═══ -->
+<section id="score-weight">
+  <div class="sec-label">04 &mdash; Core Innovation</div>
+  <h2>Score-Based Gaussian Weight</h2>
+
+  <p>fix8의 <strong>이산 quality bin</strong>을 <strong>연속 Gaussian kernel</strong>로 대체합니다. 이것이 fix10의 핵심 변경입니다.</p>
+
+  <div class="vs-grid">
+    <div class="vs-card old">
+      <span class="vs-tag">fix8 (이산 bin)</span>
+      <div class="math-block" style="margin:1rem 0 0.5rem">
+        $$\ell_i = \text{bucketize}(s_i,\;[b_1, b_2])$$
+        $$\text{positive} \iff \ell_a = \ell_p$$
+      </div>
+      <ul class="styled-list">
+        <li>score를 3개 bin으로 잘라냄</li>
+        <li>bin 내 = 동일 weight (1.0)</li>
+        <li>bin 밖 = weight 0</li>
+        <li>경계에서 정보 손실</li>
+      </ul>
+    </div>
+    <div class="vs-divider">&rarr;</div>
+    <div class="vs-card new">
+      <span class="vs-tag">fix10 (연속 kernel)</span>
+      <div class="math-block" style="margin:1rem 0 0.5rem">
+        $$w(a, p) = \exp\!\left(-\frac{|s_a - s_p|^2}{2\sigma^2}\right)$$
+      </div>
+      <ul class="styled-list">
+        <li>score 차이를 연속 가중치로 반영</li>
+        <li>유사할수록 w &rarr; 1 (강한 positive)</li>
+        <li>다를수록 w &rarr; 0 (약한 positive)</li>
+        <li>경계 문제 완전 제거</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>$\sigma$ (bandwidth) 설정</h3>
+
+  <div class="math-block">
+    <div class="math-label">Adaptive bandwidth</div>
+    $$\sigma = \text{std}(s_{\text{batch}}) \times \text{bandwidth\_scale}$$
+  </div>
+
+  <p>배치 내 score의 표준편차를 기반으로 자동 설정됩니다. <code>bandwidth_scale</code> (기본값 1.0)로 커널의 폭을 조절합니다.</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>bandwidth_scale</th><th>$\sigma$ 크기</th><th>효과</th></tr></thead>
+      <tbody>
+        <tr><td>0.5</td><td>좁음</td><td>score가 매우 비슷한 pair만 strong positive &rarr; 엄격한 매칭</td></tr>
+        <tr><td class="t-accent">1.0 (기본)</td><td class="t-accent">표준</td><td class="t-accent">score 분포에 맞는 자연스러운 폭</td></tr>
+        <tr><td>2.0</td><td>넓음</td><td>더 많은 pair가 positive로 작용 &rarr; 관대한 매칭</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>직관적 예시</h3>
+
+  <div class="card card-accent">
+    <div class="code-block">
+<span class="cm"># batch scores (5개 이미지)</span>
+scores = [<span class="nm">0.8</span>(남), <span class="nm">0.7</span>(여), <span class="nm">0.5</span>(남), <span class="nm">0.3</span>(여), <span class="nm">0.4</span>(남)]
+σ = std(scores) ≈ <span class="nm">0.19</span>
+
+<span class="cm"># anchor=여(0.7)에 대한 cross-gender weight</span>
+w(0.7, 0.8남) = exp(-0.01/0.072) = <span class="st">0.87</span>  <span class="cm">← 강한 positive</span>
+w(0.7, 0.5남) = exp(-0.04/0.072) = <span class="st">0.57</span>  <span class="cm">← 중간 positive</span>
+w(0.7, 0.4남) = exp(-0.09/0.072) = <span class="st">0.29</span>  <span class="cm">← 약한 positive</span>
+
+<span class="cm"># fix8이었다면: bin=[0.8,0.7]=bin2, [0.5,0.4]=bin1, [0.3]=bin0</span>
+<span class="cm"># → 0.7여와 0.8남만 positive (w=1), 나머지 전부 w=0 (정보 손실!)</span>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 5. LOSS 수식 ═══ -->
+<section id="loss">
+  <div class="sec-label">05 &mdash; Score-Weighted Contrastive Loss</div>
+  <h2>Loss 수식</h2>
+
+  <h3>집합 정의</h3>
+
+  <div class="math-block">
+    <div class="math-label">Anchor &amp; Target 집합</div>
+    $$\mathcal{A} = \{i \mid \text{gender}_i = \text{anchor}\}, \quad \mathcal{T} = \{j \mid \text{gender}_j = \text{target}\}$$
+  </div>
+
+  <h3>Similarity</h3>
+
+  <div class="math-block">
+    <div class="math-label">Temperature-scaled cosine similarity</div>
+    $$\text{sim}(i,j) = \frac{z_i^\top z_j}{\tau}, \quad \tau = 0.1$$
+  </div>
+
+  <h3>Score-Weighted Positive Similarity</h3>
+
+  <p>fix8의 이산 positive mask를 <strong>연속 가중 평균</strong>으로 대체합니다.</p>
+
+  <div class="math-block glow">
+    <div class="math-label">Weighted positive + stop-gradient (핵심 변경)</div>
+    $$\overline{\text{sim}}_a^{+} = \frac{\displaystyle\sum_{p \in \mathcal{T}} w(a, p) \cdot \frac{z_a^\top \,\text{sg}(z_p)}{\tau}}{\displaystyle\sum_{p \in \mathcal{T}} w(a, p)}$$
+  </div>
+
+  <p>여기서 $w(a,p) = \exp(-|s_a - s_p|^2 / 2\sigma^2)$이고, $\text{sg}(\cdot)$은 stop-gradient (detach)입니다. Score가 유사한 cross-gender pair일수록 더 높은 가중치를 받으며, <strong>target(남성) projection은 고정</strong>되어 gradient가 anchor(여성)에만 흐릅니다.</p>
+
+  <div class="callout">
+    <div class="callout-icon">&#128161;</div>
+    <div class="callout-body">
+      <strong>fix8 대비 2가지 핵심 차이:</strong><br>
+      (1) fix8은 $\text{pos\_mask}$가 0 또는 1 (이산 bin). fix10은 $w(a,p)$가 0~1 연속값 (Gaussian kernel).<br>
+      (2) fix8은 target에 gradient가 흐름 (양방향). fix10은 $\text{sg}(z_p)$로 target 고정 (단방향).
+    </div>
+  </div>
+
+  <h3>Denominator (Collapse 방지)</h3>
+
+  <div class="math-block">
+    <div class="math-label">LogSumExp over all (self 제외)</div>
+    $$\text{logdenom}_a = \log \sum_{\substack{k=1 \\ k \neq a}}^{N} \exp\!\big(\text{sim}(a, k)\big)$$
+  </div>
+
+  <h3>최종 Loss</h3>
+
+  <div class="math-block glow">
+    <div class="math-label">Score-Weighted Contrastive Loss</div>
+    $$\boxed{\mathcal{L}_{\text{contrastive}} = \frac{1}{|\mathcal{A}^+|} \sum_{a \in \mathcal{A}^+} \left[-\;\overline{\text{sim}}_a^{+} \;+\; \text{logdenom}_a\right]}$$
+  </div>
+
+  <p>$\mathcal{A}^+ = \{a \in \mathcal{A} \mid \sum_p w(a,p) > \epsilon\}$: 유의미한 positive가 있는 anchor만 포함.</p>
+
+  <h3>코드 대응</h3>
+
+  <div class="code-block">
+    <span class="tag">Python</span>
+<span class="cm"># 1) Score-based Gaussian weight (bin 대체)</span>
+sigma = scores.<span class="fn">std</span>().<span class="fn">clamp</span>(min=<span class="nm">0.01</span>) * self.bandwidth_scale
+score_diff_sq = (scores[anchor_idx].<span class="fn">unsqueeze</span>(<span class="nm">1</span>) - scores[target_idx].<span class="fn">unsqueeze</span>(<span class="nm">0</span>)).<span class="fn">pow</span>(<span class="nm">2</span>)
+weights = (-score_diff_sq / (<span class="nm">2</span> * sigma**<span class="nm">2</span>)).<span class="fn">exp</span>()   <span class="cm"># (n_a, n_t)</span>
+
+<span class="cm"># 2) 단방향 similarity (target detach — 핵심!)</span>
+anchor_proj = projections[anchor_idx]                     <span class="cm"># gradient ✓</span>
+target_proj = projections[target_idx].<span class="fn">detach</span>()            <span class="cm"># gradient ✗ (고정)</span>
+sim_a2t = torch.<span class="fn">mm</span>(anchor_proj, target_proj.T) / τ      <span class="cm"># (n_a, n_t)</span>
+
+<span class="cm"># 3) Weighted positive similarity</span>
+w_sum = weights.<span class="fn">sum</span>(dim=<span class="nm">1</span>).<span class="fn">clamp</span>(min=<span class="nm">1e-8</span>)
+weighted_pos = (sim_a2t * weights).<span class="fn">sum</span>(<span class="nm">1</span>) / w_sum      <span class="cm"># 가중 평균</span>
+
+<span class="cm"># 4) Denominator (self 제외, 전체 sim 사용)</span>
+sim_all = projections @ projections.T / τ
+sim_anchors = sim_all[anchor_idx].<span class="fn">masked_fill</span>(mask_self, <span class="nm">-inf</span>)
+log_denom = torch.<span class="fn">logsumexp</span>(sim_anchors, dim=<span class="nm">1</span>)
+
+<span class="cm"># 4) Loss</span>
+loss = -(weighted_pos - log_denom).<span class="fn">mean</span>()
+  </div>
+</section>
+
+<!-- ═══ 5.5 DETACH ═══ -->
+<section id="detach">
+  <div class="sec-label">05.5 &mdash; Unidirectional Gradient</div>
+  <h2>단방향 Gradient: target detach</h2>
+
+  <p>7th.py(논문)의 Wasserstein loss는 <code>male_scores.detach()</code>로 남성을 "고정된 목표"로 설정했습니다. fix10에서 Wasserstein을 제거했으므로, <strong>contrastive loss 안에서 동일한 단방향 메커니즘</strong>을 구현해야 합니다.</p>
+
+  <h3>문제: detach 없으면 양방향 이동</h3>
+
+  <div class="card card-warm">
+    <div class="code-block">
+<span class="cm"># detach 없이 similarity 계산하면:</span>
+sim(a, p) = z_a<span class="nm">ᵀ</span> · z_p / τ
+
+<span class="cm"># backprop 시 gradient가 양쪽에 흐름</span>
+z_a (여성) ← gradient ✓  <span class="cm"># 여성이 이동</span>
+z_p (남성) ← gradient ✓  <span class="cm"># 남성도 이동 (의도하지 않음!)</span>
+
+<span class="cm"># 결과: 둘 다 "가운데"로 모임 → 남성 성능 하락 위험</span>
+    </div>
+  </div>
+
+  <h3>해결: target projection을 detach</h3>
+
+  <div class="math-block glow">
+    <div class="math-label">단방향 Similarity (stop-gradient)</div>
+    $$\text{sim}(a, p) = \frac{z_a^\top \cdot \text{sg}(z_p)}{\tau}$$
+  </div>
+
+  <p>$\text{sg}(\cdot)$ = stop-gradient. $z_p$의 값은 사용하지만 gradient는 차단합니다.</p>
+
+  <div class="card card-accent">
+    <div class="code-block">
+<span class="cm"># fix10: target을 detach하여 단방향 gradient</span>
+anchor_proj = projections[anchor_idx]               <span class="cm"># 여성: gradient ✓</span>
+target_proj = projections[target_idx].<span class="fn">detach</span>()      <span class="cm"># 남성: gradient ✗ (고정)</span>
+
+sim_a2t = torch.<span class="fn">mm</span>(anchor_proj, target_proj.T) / τ  <span class="cm"># 단방향 similarity</span>
+    </div>
+  </div>
+
+  <h3>Gradient 흐름 비교</h3>
+
+  <div class="vs-grid">
+    <div class="vs-card old">
+      <span class="vs-tag">detach 없음 (양방향)</span>
+      <div class="code-block">
+여성: x→G→δ→DETR→z_a ← grad ✓
+                       ↕ sim
+남성: x→G→δ→DETR→z_p ← grad ✓
+
+→ 둘 다 이동 (남성 성능 하락)
+      </div>
+    </div>
+    <div class="vs-divider">&rarr;</div>
+    <div class="vs-card new">
+      <span class="vs-tag">detach 있음 (단방향)</span>
+      <div class="code-block">
+여성: x→G→δ→DETR→z_a ← grad ✓
+                       ↕ sim
+남성: x→G→δ→DETR→z_p.detach() ✗
+
+→ 여성만 이동 (남성 고정)
+      </div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <div class="callout-icon">&#128274;</div>
+    <div class="callout-body">
+      <strong>7th.py와의 연결:</strong>
+      7th.py의 <code>male_scores.detach()</code>가 score 공간에서 남성을 고정했던 것처럼,
+      fix10의 <code>projections[target_idx].detach()</code>는 feature 공간에서 남성을 고정합니다.
+      Wasserstein을 제거했지만 <strong>단방향 정렬의 핵심 메커니즘은 계승</strong>됩니다.
+    </div>
+  </div>
+
+  <h3>이것이 공정성에 미치는 영향</h3>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th></th><th>detach 없음</th><th>detach 있음 (fix10)</th></tr></thead>
+      <tbody>
+        <tr><td>여성 feature</td><td>남성 방향으로 이동</td><td class="t-accent">남성 방향으로 이동</td></tr>
+        <tr><td>남성 feature</td><td class="t-warm">여성 방향으로도 이동</td><td class="t-accent">고정 (변하지 않음)</td></tr>
+        <tr><td>남성 성능</td><td class="t-warm">하락 위험</td><td class="t-accent">보존</td></tr>
+        <tr><td>공정성 달성 방식</td><td>양쪽이 가운데로</td><td class="t-accent">여성이 남성 수준으로 올라감</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ═══ 6. WHY NO WASS ═══ -->
+<section id="why-no-wass">
+  <div class="sec-label">06 &mdash; Rationale</div>
+  <h2>W거리 제거 근거</h2>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>기존 W거리의 역할</th><th>fix10에서의 대체 메커니즘</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>"같은 수준의 score끼리 맞춰라"</td>
+          <td class="t-accent">Gaussian kernel $w(a,p)$가 score 유사도를 직접 반영</td>
+        </tr>
+        <tr>
+          <td>Score 분포 정렬</td>
+          <td class="t-accent">Feature가 정렬되면 DETR 출력(score)도 자연 정렬</td>
+        </tr>
+        <tr>
+          <td>단방향 push (anchor &uarr;)</td>
+          <td class="t-accent">Anchor 방향 설정으로 동일 효과</td>
+        </tr>
+        <tr>
+          <td>Per-sample gradient</td>
+          <td class="t-accent">Contrastive weight가 각 pair에 개별 gradient 전달</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card card-gold">
+    <h4>핵심 논거</h4>
+    <p style="margin:0;color:var(--text)">
+      fix8에서 W거리는 "score가 비슷한 남녀를 맞춰라"고 말하고,
+      SupCon은 "같은 quality bin의 남녀 feature를 맞춰라"고 말합니다.
+      <strong>Quality bin이 score로 정의되므로</strong>, 이 두 말은 사실상 동일합니다.
+      <br><br>
+      fix10의 Gaussian kernel은 이 두 역할을 하나로 흡수합니다:
+      $w(a,p) = \exp(-|s_a - s_p|^2 / 2\sigma^2)$ 자체가
+      "score가 비슷한 cross-gender pair를 더 강하게 정렬하라"는 의미이기 때문입니다.
+    </p>
+  </div>
+</section>
+
+<!-- ═══ 7. TOTAL LOSS ═══ -->
+<section id="total">
+  <div class="sec-label">07 &mdash; Total Loss</div>
+  <h2>최종 손실 함수</h2>
+
+  <div class="math-block glow">
+    <div class="math-label">fix10 Total Loss</div>
+    $$\boxed{\mathcal{L}_{\text{total}} = \underbrace{\lambda_{\text{con}} \cdot w(e) \cdot \mathcal{L}_{\text{contrastive}}}_{\text{공정성 (feature 정렬)}} + \underbrace{\beta(e) \cdot \mathcal{L}_{\text{det}}}_{\text{성능 보존}}}$$
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>기호</th><th>값</th><th>역할</th></tr></thead>
+      <tbody>
+        <tr><td>$\lambda_{\text{con}}$</td><td class="t-accent">1.0</td><td>Contrastive 가중치</td></tr>
+        <tr><td>$w(e)$</td><td class="t-accent">0 &rarr; 1 (3ep)</td><td>Warmup &mdash; 초반 서서히 활성화</td></tr>
+        <tr><td>$\beta(e)$</td><td class="t-gold">0.5 &rarr; 0.6</td><td>Detection 보존 (후반 비중 증가)</td></tr>
+        <tr><td class="t-strike">$\lambda_w$</td><td class="t-strike">~~0.2~~</td><td class="t-strike">~~Wasserstein~~ (제거됨)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="code-block">
+    <span class="tag">변경 비교</span>
+<span class="cm"># [fix8 — 3개]</span>
+total = λ_sc * w * loss_supcon + <span class="kw">λ_w * loss_wass</span> + β * loss_det
+
+<span class="cm"># [fix10 — 2개]</span>
+total = λ_con * w * loss_contrastive + β * loss_det
+<span class="cm">#                                     ↑ Wasserstein 항 제거</span>
+  </div>
+</section>
+
+<!-- ═══ 8. COMPARISON ═══ -->
+<section id="comparison">
+  <div class="sec-label">08 &mdash; Comparison</div>
+  <h2>fix8 vs fix10 비교</h2>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>측면</th><th>fix8</th><th>fix10</th></tr></thead>
+      <tbody>
+        <tr><td>Loss 개수</td><td>3 (SupCon + Wass + Det)</td><td class="t-accent">2 (Contrastive + Det)</td></tr>
+        <tr><td>Loss 목적</td><td class="t-warm">불명확 (2개 중복)</td><td class="t-accent">명확 (공정성 + 보존)</td></tr>
+        <tr><td>Quality 반영</td><td>이산 bin 3개</td><td class="t-accent">연속 Gaussian kernel</td></tr>
+        <tr><td>Bin 경계 문제</td><td class="t-warm">있음</td><td class="t-accent">없음</td></tr>
+        <tr><td>Score 정보</td><td>bin 라벨로 손실</td><td class="t-accent">연속 weight로 보존</td></tr>
+        <tr><td>W거리</td><td>있음 (중복)</td><td class="t-accent">제거</td></tr>
+        <tr><td>하이퍼파라미터</td><td>6개</td><td class="t-accent">4개</td></tr>
+        <tr><td>Anchor 방향</td><td>지원 (man/women)</td><td class="t-accent">동일 지원</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>하이퍼파라미터 비교</h3>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>파라미터</th><th>fix8</th><th>fix10</th><th>비고</th></tr></thead>
+      <tbody>
+        <tr><td>$\lambda_{\text{sc}}$ / $\lambda_{\text{con}}$</td><td>1.0</td><td>1.0</td><td>동일</td></tr>
+        <tr><td>$\tau$</td><td>0.1</td><td>0.1</td><td>동일</td></tr>
+        <tr><td>$\beta$</td><td>0.5→0.6</td><td>0.5→0.6</td><td>동일</td></tr>
+        <tr><td>warmup</td><td>3 ep</td><td>3 ep</td><td>동일</td></tr>
+        <tr><td class="t-strike">$\lambda_w$</td><td>0.2</td><td class="t-warm">&mdash;</td><td class="t-warm">제거</td></tr>
+        <tr><td class="t-strike">$n_{\text{bins}}$</td><td>3</td><td class="t-warm">&mdash;</td><td class="t-warm">제거 (kernel 대체)</td></tr>
+        <tr><td class="t-accent">bandwidth_scale</td><td>&mdash;</td><td class="t-accent">1.0</td><td class="t-accent">신규 (kernel 폭)</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ═══ 9. SCHEDULING ═══ -->
+<section id="schedule">
+  <div class="sec-label">09 &mdash; Scheduling</div>
+  <h2>스케줄링 (fix8과 동일)</h2>
+
+  <p>Epsilon, Beta, LR 스케줄링은 fix8과 완전 동일합니다. 변수를 최소화하여 loss 변경의 효과만 측정합니다.</p>
+
+  <h3>Contrastive Warmup</h3>
+
+  <div class="math-block">
+    $$w(e) = \min\!\left(\frac{e}{E_{\text{cw}}},\; 1.0\right), \quad E_{\text{cw}} = 3$$
+  </div>
+
+  <div class="sch-bar">
+    <div class="sch-w">warmup</div>
+    <div class="sch-r">contrastive 완전 활성</div>
+  </div>
+  <div class="sch-labels"><span>epoch 0</span><span>epoch 3</span><span>epoch 24</span></div>
+
+  <h3>Epsilon 스케줄</h3>
+
+  <div class="math-block">
+    $$\epsilon(e) = \begin{cases}
+    0.05 + 0.05 \cdot \frac{e}{8} & e < 8 \;\text{(warmup)} \\
+    0.10 & 8 \leq e < 14 \;\text{(hold)} \\
+    0.10 - 0.01 \cdot \frac{e-14}{10} & e \geq 14 \;\text{(cooldown)}
+    \end{cases}$$
+  </div>
+
+  <h3>Beta 스케줄</h3>
+
+  <div class="math-block">
+    $$\beta(e) = 0.5 + 0.1 \cdot \frac{e}{23}$$
+  </div>
+</section>
+
+<!-- ═══ 10. EXPERIMENT ═══ -->
+<section id="experiment">
+  <div class="sec-label">10 &mdash; Experiment Design</div>
+  <h2>실험 설계</h2>
+
+  <h3>비교 대상</h3>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>실험</th><th>Loss 구성</th><th>파일</th></tr></thead>
+      <tbody>
+        <tr><td>Baseline (7th)</td><td>GAN + Wass + Det</td><td>train_faap_wgan_GD_7th.py</td></tr>
+        <tr><td>fix8</td><td>SupCon(bin) + Wass + Det</td><td>fix8gpu_anchor_women</td></tr>
+        <tr><td class="t-accent">fix10 (proposed)</td><td class="t-accent">ScoreWeighted Contrastive + Det</td><td class="t-accent">fix10gpu_scf</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>평가 메트릭 &amp; 목표</h3>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>메트릭</th><th>Baseline (7th)</th><th>목표</th></tr></thead>
+      <tbody>
+        <tr><td>Male AP @[0.50:0.95]</td><td>0.514</td><td class="t-accent">&ge; 0.514</td></tr>
+        <tr><td>Female AP @[0.50:0.95]</td><td>0.408</td><td class="t-accent">&gt; 0.408</td></tr>
+        <tr><td>AP Gap (M&minus;F)</td><td>0.106</td><td class="t-accent">&lt; 0.106</td></tr>
+        <tr><td>AR Gap (M&minus;F)</td><td>0.003</td><td class="t-accent">&lt; 0.003</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>리스크 &amp; 대응</h3>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>리스크</th><th>대응</th></tr></thead>
+      <tbody>
+        <tr><td>$\sigma$가 배치마다 불안정</td><td>Running std로 smoothing, 또는 전체 데이터셋 std 사전 계산</td></tr>
+        <tr><td>bandwidth_scale 최적값 불확실</td><td>{0.5, 1.0, 2.0} 3개 실험</td></tr>
+        <tr><td>W거리 제거로 score gap 수렴 느림</td><td>Feature 정렬이 score도 간접 정렬. 안 되면 score gap term 재도입 고려</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ═══ 11. QNA ═══ -->
+<section id="qna">
+  <div class="sec-label">11 &mdash; Expected Q&amp;A</div>
+  <h2>예상 질문</h2>
+
+  <div class="card card-purple" style="margin-top:1.5rem">
+    <h4>Q1. W거리를 빼면 score 정렬이 안 되는 거 아닌가?</h4>
+    <p style="margin:0">Gaussian kernel weight $w(a,p)$가 score 유사도를 직접 반영하므로, contrastive loss 자체가 "score가 비슷한 pair를 정렬하라"는 의미를 내포합니다. Feature가 정렬되면 DETR 출력(score)도 자연 정렬됩니다.</p>
+  </div>
+
+  <div class="card card-purple">
+    <h4>Q2. Gaussian kernel 대신 bin을 유지하면 안 되나?</h4>
+    <p style="margin:0">가능하지만, bin은 경계에서 정보 손실이 발생합니다. score 0.49와 0.51이 다른 bin에 배정되면 negative 관계가 되지만, 실제로는 거의 같은 품질입니다. Gaussian kernel은 이 문제를 자연스럽게 해결합니다.</p>
+  </div>
+
+  <div class="card card-purple">
+    <h4>Q3. $\sigma$를 adaptive로 설정하면 학습이 불안정하지 않나?</h4>
+    <p style="margin:0">배치 크기가 5로 작아서 우려할 수 있지만, $\text{std}(scores)$는 배치 간 크게 변하지 않습니다 (detection score가 대부분 0.3~0.9 범위). 불안정하면 전체 데이터셋의 score std를 사전 계산하여 고정값으로 사용할 수 있습니다.</p>
+  </div>
+
+  <div class="card card-purple">
+    <h4>Q4. 이 연구의 논문 기여는?</h4>
+    <p style="margin:0">
+      (1) 기존 SupCon+Wasserstein의 중복 문제를 지적<br>
+      (2) Score-weighted contrastive로 단일 목적의 통합 loss 제안<br>
+      (3) 하이퍼파라미터 감소에도 동등/우수 성능 달성 &rarr; Occam's razor<br>
+      (4) 이산 bin vs 연속 kernel의 실험적 비교 제공
+    </p>
+  </div>
+
+  <div class="card card-purple">
+    <h4>Q5. fix8 대비 성능이 안 나오면?</h4>
+    <p style="margin:0">"단순화에도 성능 유지"도 의미 있는 결과입니다. 하이퍼파라미터 2개 감소 + loss 목적 명확화는 그 자체로 contribution입니다. 만약 성능이 하락한다면, Wasserstein이 contrastive와 독립적인 보완 역할을 한다는 발견이 됩니다.</p>
+  </div>
+</section>
+
+</div>
+
+<footer>
+  <strong>FAAP fix10 Analysis</strong> &mdash; Trustworthy AI Lab, 인천대학교 정보통신공학과
+  <br>Generated 2026-03-24
+</footer>
+
+<button class="back-top" id="backTop" onclick="window.scrollTo({top:0,behavior:'smooth'})">&uarr;</button>
+
+<script>
+// Section reveal
+const obs = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: 0.08, rootMargin: '0px 0px -30px 0px' });
+document.querySelectorAll('section').forEach(s => obs.observe(s));
+
+// Pipeline flow stagger
+const flowObs = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('animated'); });
+}, { threshold: 0.3 });
+document.querySelectorAll('.flow').forEach(f => flowObs.observe(f));
+
+// Nav
+const navProgress = document.getElementById('navProgress');
+const backTop = document.getElementById('backTop');
+const sections = document.querySelectorAll('section[id]');
+const navLinks = document.querySelectorAll('.nav-link');
+
+window.addEventListener('scroll', () => {
+  document.getElementById('nav').classList.toggle('scrolled', window.scrollY > 10);
+  backTop.classList.toggle('show', window.scrollY > 500);
+
+  const h = document.documentElement.scrollHeight - window.innerHeight;
+  navProgress.style.width = h > 0 ? Math.min(window.scrollY / h * 100, 100) + '%' : '0%';
+
+  let cur = '';
+  sections.forEach(s => { if (window.scrollY >= s.offsetTop - 120) cur = s.id; });
+  navLinks.forEach(l => l.classList.toggle('active', l.getAttribute('href') === '#' + cur));
+});
+</script>
+
+</body>
+</html>

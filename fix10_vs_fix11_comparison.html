@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FAAP fix10 vs fix11 — Comparative Analysis</title>
+<script>
+MathJax={tex:{inlineMath:[['$','$']],displayMath:[['$$','$$']]},svg:{fontCache:'global'}};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Noto+Sans+KR:wght@300;400;500;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#fafbfc;--surf:#fff;--ink:#1c1c2e;--dim:#5e5e78;--faint:#a0a0b8;
+  --border:#e4e4ee;--code-bg:#1e1e2e;--code-fg:#cdd6f4;
+  --fix10:#0ea5e9;--fix10-bg:rgba(14,165,233,.06);--fix10-border:rgba(14,165,233,.25);
+  --fix11:#f97316;--fix11-bg:rgba(249,115,22,.06);--fix11-border:rgba(249,115,22,.25);
+  --supcon:#8b5cf6;--supcon-bg:rgba(139,92,246,.06);
+  --fix8:#ef4444;--fix8-bg:rgba(239,68,68,.06);
+  --green:#10b981;--green-bg:rgba(16,185,129,.06);
+  --gold:#eab308;
+  --radius:14px;--shadow:0 1px 12px rgba(28,28,46,.06);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--ink);font-size:16px;line-height:1.8}
+
+/* HERO */
+.hero{min-height:55vh;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;background:linear-gradient(135deg,#1c1c2e 0%,#0ea5e9 50%,#f97316 100%)}
+.hero::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(135deg,transparent,transparent 60px,rgba(255,255,255,.02) 60px,rgba(255,255,255,.02) 61px)}
+.hero-content{position:relative;z-index:1;text-align:center;padding:3rem 2rem}
+.hero-tag{font-family:'Fira Code',monospace;font-size:.72rem;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,.5);margin-bottom:.8rem;opacity:0;animation:up .6s ease .1s forwards}
+.hero h1{font-family:'Outfit',sans-serif;font-size:clamp(2.2rem,5vw,3.8rem);font-weight:800;color:#fff;line-height:1.15;margin-bottom:.8rem;opacity:0;animation:up .7s ease .2s forwards}
+.hero h1 .c10{color:var(--fix10)} .hero h1 .c11{color:var(--fix11)}
+.hero-sub{font-size:1rem;color:rgba(255,255,255,.6);font-weight:300;max-width:560px;margin:0 auto 2rem;opacity:0;animation:up .7s ease .35s forwards}
+@keyframes up{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+
+/* NAV */
+.nav{position:sticky;top:0;z-index:100;background:rgba(250,251,252,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
+.nav-prog{position:absolute;bottom:0;left:0;height:2px;background:linear-gradient(90deg,var(--fix10),var(--fix11));width:0%;transition:width .12s}
+.nav-inner{max-width:1050px;margin:0 auto;display:flex;gap:.15rem;padding:.45rem 1.5rem;overflow-x:auto;scrollbar-width:none}
+.nav-inner::-webkit-scrollbar{display:none}
+.nav-link{font-size:.73rem;font-weight:500;color:var(--faint);text-decoration:none;padding:.35rem .75rem;border-radius:6px;white-space:nowrap;transition:all .2s}
+.nav-link:hover{color:var(--dim);background:rgba(0,0,0,.03)}
+.nav-link.active{color:var(--fix10);background:var(--fix10-bg)}
+
+/* CONTENT */
+.container{max-width:920px;margin:0 auto;padding:0 2rem 6rem}
+section{margin-top:4.5rem;opacity:0;transform:translateY(14px);transition:opacity .5s,transform .5s}
+section.visible{opacity:1;transform:translateY(0)}
+.stag{font-family:'Fira Code',monospace;font-size:.68rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:.4rem}
+.stag.t10{color:var(--fix10)} .stag.t11{color:var(--fix11)} .stag.tg{color:var(--green)} .stag.ts{color:var(--supcon)}
+section>h2{font-family:'Outfit',sans-serif;font-size:1.7rem;font-weight:700;margin-bottom:1rem}
+h3{font-size:1.05rem;font-weight:700;margin:2rem 0 .7rem;padding-left:.9rem;border-left:3px solid var(--fix10)}
+h3.h11{border-left-color:var(--fix11)}
+h3.hs{border-left-color:var(--supcon)}
+h4{font-size:.95rem;font-weight:700;margin:1.2rem 0 .4rem}
+p{margin-bottom:1rem;color:var(--dim)} p strong{color:var(--ink)}
+
+/* CARDS */
+.card{background:var(--surf);border:1px solid var(--border);border-radius:var(--radius);padding:1.6rem;margin:1.5rem 0;box-shadow:var(--shadow);transition:transform .2s,box-shadow .2s}
+.card:hover{transform:translateY(-2px);box-shadow:0 4px 20px rgba(0,0,0,.08)}
+.c10{border-left:4px solid var(--fix10);background:linear-gradient(135deg,var(--fix10-bg),var(--surf) 60%)}
+.c11{border-left:4px solid var(--fix11);background:linear-gradient(135deg,var(--fix11-bg),var(--surf) 60%)}
+.cs{border-left:4px solid var(--supcon);background:linear-gradient(135deg,var(--supcon-bg),var(--surf) 60%)}
+.c8{border-left:4px solid var(--fix8);background:linear-gradient(135deg,var(--fix8-bg),var(--surf) 60%)}
+.cg{border-left:4px solid var(--green);background:linear-gradient(135deg,var(--green-bg),var(--surf) 60%)}
+
+/* DUAL GRID */
+.dual{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin:1.5rem 0}
+@media(max-width:700px){.dual{grid-template-columns:1fr}}
+.dual-card{background:var(--surf);border-radius:var(--radius);padding:1.4rem;box-shadow:var(--shadow);border-top:4px solid}
+.dual-card.d10{border-top-color:var(--fix10);background:linear-gradient(180deg,var(--fix10-bg),var(--surf) 25%)}
+.dual-card.d11{border-top-color:var(--fix11);background:linear-gradient(180deg,var(--fix11-bg),var(--surf) 25%)}
+.dual-card.ds{border-top-color:var(--supcon);background:linear-gradient(180deg,var(--supcon-bg),var(--surf) 25%)}
+.dtag{font-family:'Fira Code',monospace;font-size:.63rem;letter-spacing:1px;text-transform:uppercase;padding:.15rem .5rem;border-radius:4px;display:inline-block;margin-bottom:.6rem}
+.d10 .dtag{color:var(--fix10);background:var(--fix10-bg)}
+.d11 .dtag{color:var(--fix11);background:var(--fix11-bg)}
+.ds .dtag{color:var(--supcon);background:var(--supcon-bg)}
+
+/* MATH */
+.mb{background:var(--surf);border:1px solid var(--border);border-radius:10px;padding:1.3rem 1.6rem;margin:1.5rem 0;overflow-x:auto;text-align:center;box-shadow:0 1px 6px rgba(0,0,0,.03)}
+.mb.glow10{border-color:var(--fix10-border);box-shadow:0 0 20px rgba(14,165,233,.06)}
+.mb.glow11{border-color:var(--fix11-border);box-shadow:0 0 20px rgba(249,115,22,.06)}
+.mb.glows{border-color:rgba(139,92,246,.3);box-shadow:0 0 20px rgba(139,92,246,.06)}
+.ml{font-family:'Fira Code',monospace;font-size:.62rem;color:var(--faint);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:.6rem;text-align:left}
+
+/* CODE */
+.cb{background:var(--code-bg);color:var(--code-fg);font-family:'Fira Code',monospace;font-size:.78rem;line-height:1.7;border-radius:10px;padding:1.1rem 1.3rem;margin:1rem 0;overflow-x:auto;position:relative}
+.cb .cm{color:#6c7086} .cb .kw{color:#cba6f7} .cb .fn{color:#89b4fa} .cb .nm{color:#fab387} .cb .st{color:#a6e3a1}
+
+/* TABLES */
+.tw{overflow-x:auto;margin:1.5rem 0;border-radius:10px;box-shadow:var(--shadow);border:1px solid var(--border)}
+table{width:100%;border-collapse:collapse;font-size:.87rem;background:var(--surf)}
+thead{background:var(--ink);color:#fff}
+th{padding:.7rem 1rem;text-align:left;font-weight:600;font-size:.76rem;letter-spacing:.5px}
+td{padding:.6rem 1rem;border-bottom:1px solid #f0f0f5}
+tbody tr:hover{background:rgba(14,165,233,.03)}
+.t10{color:var(--fix10);font-weight:600} .t11{color:var(--fix11);font-weight:600}
+.ts{color:var(--supcon);font-weight:600} .t8{color:var(--fix8);font-weight:600}
+.tg{color:var(--green);font-weight:600}
+.tx{text-decoration:line-through;opacity:.4}
+
+/* CALLOUT */
+.co{display:flex;gap:1rem;background:#f0f7ff;border-radius:10px;padding:1.1rem 1.3rem;margin:1.5rem 0;border-left:3px solid var(--fix10)}
+.co.w{border-left-color:var(--gold);background:#fefce8}
+.co-i{font-size:1.2rem;flex-shrink:0} .co-b{font-size:.9rem;color:var(--dim)} .co-b strong{color:var(--ink)}
+
+/* ANCHOR TABLE (special) */
+.anchor-table{border:2px solid var(--border);border-radius:var(--radius);overflow:hidden;margin:1.5rem 0}
+.anchor-table table{border-collapse:collapse}
+.anchor-table thead{background:linear-gradient(135deg,#1c1c2e,#2d3a6e)}
+.anchor-table th{color:#fff;font-size:.8rem}
+.anchor-table td{padding:.8rem 1rem;vertical-align:top;border-bottom:1px solid var(--border)}
+.anchor-table .row-header{font-weight:700;background:#f8f9fb;width:120px}
+.pill{display:inline-block;font-family:'Fira Code',monospace;font-size:.65rem;padding:.15rem .5rem;border-radius:100px;margin:.1rem}
+.pill-a{background:var(--fix10-bg);color:var(--fix10);border:1px solid var(--fix10-border)}
+.pill-p{background:var(--green-bg);color:var(--green);border:1px solid rgba(16,185,129,.3)}
+.pill-n{background:var(--fix8-bg);color:var(--fix8);border:1px solid rgba(239,68,68,.3)}
+.pill-w{background:rgba(234,179,8,.08);color:#a16207;border:1px solid rgba(234,179,8,.3)}
+
+.styled-list{list-style:none;margin:.5rem 0 1rem}
+.styled-list li{padding:.25rem 0 .25rem 1.3rem;position:relative;color:var(--dim)}
+.styled-list li::before{content:'';position:absolute;left:0;top:.85rem;width:5px;height:5px;border-radius:50%;background:var(--fix10)}
+
+.back-top{position:fixed;bottom:2rem;right:2rem;width:40px;height:40px;border-radius:50%;background:var(--ink);color:#fff;border:none;font-size:1rem;cursor:pointer;opacity:0;transform:translateY(8px);transition:opacity .3s,transform .3s;z-index:99;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 10px rgba(0,0,0,.15)}
+.back-top.show{opacity:1;transform:translateY(0)}
+.back-top:hover{background:var(--fix10)}
+footer{text-align:center;padding:2.5rem 2rem;color:var(--faint);font-size:.78rem;border-top:1px solid var(--border)}
+@media(max-width:640px){.container{padding:0 1.2rem 4rem} .card{padding:1.2rem}}
+@media print{.nav,.back-top{display:none} section{opacity:1!important;transform:none!important} .card:hover{transform:none}}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-content">
+    <div class="hero-tag">Comparative Analysis &mdash; Trustworthy AI Lab</div>
+    <h1><span class="c10">fix10</span> vs <span class="c11">fix11</span></h1>
+    <p class="hero-sub">Distribution-Fixed Loss와 Gender-Conditional Loss의 비교 분석. SupCon 원본 논문과의 관계, Anchor/Positive/Negative 설정까지.</p>
+  </div>
+</header>
+
+<nav class="nav" id="nav">
+  <div class="nav-prog" id="navProg"></div>
+  <div class="nav-inner">
+    <a class="nav-link" href="#overview">Overview</a>
+    <a class="nav-link" href="#supcon">SupCon 원본</a>
+    <a class="nav-link" href="#ours">Our Contrastive</a>
+    <a class="nav-link" href="#anchor">Anchor/Pos/Neg</a>
+    <a class="nav-link" href="#fix10-loss">fix10 Loss</a>
+    <a class="nav-link" href="#fix11-loss">fix11 Loss</a>
+    <a class="nav-link" href="#gradient">Gradient 비교</a>
+    <a class="nav-link" href="#total">Total Loss</a>
+    <a class="nav-link" href="#code">코드 비교</a>
+    <a class="nav-link" href="#table">종합 비교표</a>
+    <a class="nav-link" href="#qna">Q&A</a>
+  </div>
+</nav>
+
+<div class="container">
+
+<!-- 1 -->
+<section id="overview">
+  <div class="stag tg">01 &mdash; Overview</div>
+  <h2>두 접근법 한눈에 보기</h2>
+
+  <div class="dual">
+    <div class="dual-card d10">
+      <span class="dtag">fix10 &mdash; Idea 2</span>
+      <h4>Distribution-Fixed Loss</h4>
+      <p style="margin:.5rem 0"><strong>전략:</strong> 남성 feature 변화를 Stability Loss로 <strong>명시적 억제</strong></p>
+      <div class="cb">
+L = &lambda;_con &middot; L_contrastive  <span class="cm"># 여성 &rarr; 남성</span>
+  + &lambda;_stab &middot; L_stability   <span class="cm"># 남성 고정 (MSE)</span>
+  + &beta; &middot; L_det              <span class="cm"># 검출 보존</span></div>
+    </div>
+    <div class="dual-card d11">
+      <span class="dtag">fix11 &mdash; Idea 1</span>
+      <h4>Gender-Conditional Loss</h4>
+      <p style="margin:.5rem 0"><strong>전략:</strong> 남성에는 contrastive를 <strong>적용하지 않음</strong> (신호 자체 제거)</p>
+      <div class="cb">
+L = &lambda;_con &middot; L_contrastive  <span class="cm"># 여성만</span>
+  + &beta; &middot; L_det_female       <span class="cm"># 여성 검출</span>
+  + &beta;_m &middot; L_det_male       <span class="cm"># 남성: det만</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 2 -->
+<section id="supcon">
+  <div class="stag ts">02 &mdash; SupCon 원본 논문과의 비교</div>
+  <h2>Supervised Contrastive Learning (Khosla et al., 2020)</h2>
+
+  <h3 class="hs">SupCon 원본 수식</h3>
+
+  <div class="mb glows">
+    <div class="ml">SupCon Loss (원본)</div>
+    $$\mathcal{L}_{\text{SupCon}} = \sum_{i \in I} \frac{-1}{|P(i)|} \sum_{p \in P(i)} \log \frac{\exp(\text{sim}(z_i, z_p)/\tau)}{\sum_{a \in A(i)} \exp(\text{sim}(z_i, z_a)/\tau)}$$
+  </div>
+
+  <div class="card cs">
+    <h4 style="margin-top:0">SupCon 원본의 Anchor/Positive/Negative</h4>
+    <ul class="styled-list">
+      <li><strong>Anchor</strong>: 배치 내 모든 샘플 (augmented view 포함)</li>
+      <li><strong>Positive</strong>: <strong>같은 클래스</strong>의 다른 샘플/augmented view</li>
+      <li><strong>Negative</strong>: <strong>다른 클래스</strong>의 모든 샘플</li>
+      <li><strong>Weight</strong>: 모든 positive에 <strong>동일 가중치</strong> (1/|P(i)|)</li>
+    </ul>
+  </div>
+
+  <h3 class="hs">우리 방식과의 차이</h3>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th></th><th>SupCon 원본</th><th>fix10 / fix11 (Ours)</th></tr></thead>
+      <tbody>
+        <tr><td><strong>목적</strong></td><td>이미지 분류 성능 향상</td><td class="tg">성별 간 공정성 향상 (feature 정렬)</td></tr>
+        <tr><td><strong>Positive 기준</strong></td><td>같은 클래스 (label)</td><td class="tg">반대 성별 + 유사한 detection score</td></tr>
+        <tr><td><strong>Positive weight</strong></td><td>균등 (1/|P|)</td><td class="tg">Gaussian kernel (score 유사도 비례)</td></tr>
+        <tr><td><strong>Anchor</strong></td><td>모든 샘플</td><td class="tg">한 성별만 (female)</td></tr>
+        <tr><td><strong>Target detach</strong></td><td>없음 (양방향)</td><td class="tg">있음 (단방향)</td></tr>
+        <tr><td><strong>Augmentation</strong></td><td>2-view augmentation 필수</td><td class="tg">없음 (perturbation이 대체)</td></tr>
+        <tr><td><strong>학습 대상</strong></td><td>Backbone (encoder)</td><td class="tg">Generator + ProjectionHead (DETR frozen)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="co">
+    <div class="co-i">&#128218;</div>
+    <div class="co-b">
+      <strong>SupCon에서 차용한 것:</strong> temperature-scaled similarity, projection head, InfoNCE 구조.<br>
+      <strong>우리가 바꾼 것:</strong> positive 정의 (클래스→score 유사도), anchor 제한 (전체→한 성별), target detach (단방향), weight (균등→Gaussian kernel).
+    </div>
+  </div>
+</section>
+
+<!-- 3 -->
+<section id="ours">
+  <div class="stag tg">03 &mdash; Score-Weighted Contrastive Loss</div>
+  <h2>fix10/fix11 공통 Contrastive Loss</h2>
+
+  <p>두 버전 모두 <strong>동일한 contrastive loss 클래스</strong>를 사용합니다. 차이는 loss가 어떻게 조합되느냐에 있습니다.</p>
+
+  <h3>Gaussian Kernel Weight (bin 대체)</h3>
+
+  <div class="mb glow10">
+    <div class="ml">Score-based weight</div>
+    $$w(a, p) = \exp\!\left(-\frac{|s_a - s_p|^2}{2\sigma^2}\right), \quad \sigma = \text{std}(s_{\text{batch}}) \times \text{scale}$$
+  </div>
+
+  <h3>Contrastive Loss 수식</h3>
+
+  <div class="mb glow10">
+    <div class="ml">Score-Weighted Contrastive Loss</div>
+    $$\mathcal{L}_{\text{con}} = \frac{1}{|\mathcal{A}|} \sum_{a \in \mathcal{A}} \left[-\frac{\sum_{p \in \mathcal{T}} w(a,p) \cdot z_a^\top \text{sg}(z_p)/\tau}{\sum_{p \in \mathcal{T}} w(a,p)} + \log\sum_{k \neq a} \exp(z_a^\top z_k/\tau)\right]$$
+  </div>
+
+  <p>$\mathcal{A}$ = 여성(anchor), $\mathcal{T}$ = 남성(target). $\text{sg}(\cdot)$ = stop-gradient (detach). Target projection은 고정되어 gradient가 여성에만 흐릅니다.</p>
+</section>
+
+<!-- 4 ANCHOR/POS/NEG -->
+<section id="anchor">
+  <div class="stag tg">04 &mdash; Anchor / Positive / Negative 설정</div>
+  <h2>네 가지 방식 비교</h2>
+
+  <div class="anchor-table">
+    <table>
+      <thead>
+        <tr><th style="width:100px"></th><th>SupCon 원본</th><th>fix8 (SupCon+Wass)</th><th style="background:rgba(14,165,233,.3)">fix10 (Stability)</th><th style="background:rgba(249,115,22,.3)">fix11 (Conditional)</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="row-header">Anchor</td>
+          <td>모든 샘플<br><span class="pill pill-a">전체</span></td>
+          <td>한 성별만<br><span class="pill pill-a">female</span></td>
+          <td>한 성별만<br><span class="pill pill-a">female</span></td>
+          <td>한 성별만<br><span class="pill pill-a">female</span></td>
+        </tr>
+        <tr>
+          <td class="row-header">Positive</td>
+          <td>같은 클래스<br><span class="pill pill-p">same label</span><br>weight = 1/|P|</td>
+          <td>반대 성별 &amp; 같은 bin<br><span class="pill pill-p">cross-gender</span><span class="pill pill-p">same bin</span><br>weight = <strong>0 or 1</strong> (이산)</td>
+          <td>반대 성별 전체<br><span class="pill pill-p">cross-gender</span><span class="pill pill-w">score weight</span><br>weight = <strong>0~1 연속</strong> (Gaussian)</td>
+          <td>반대 성별 전체<br><span class="pill pill-p">cross-gender</span><span class="pill pill-w">score weight</span><br>weight = <strong>0~1 연속</strong> (Gaussian)</td>
+        </tr>
+        <tr>
+          <td class="row-header">Negative</td>
+          <td>다른 클래스<br><span class="pill pill-n">diff label</span></td>
+          <td>다른 bin + 같은 성별<br><span class="pill pill-n">diff bin</span><span class="pill pill-n">same gender</span></td>
+          <td>같은 성별 (분모)<br><span class="pill pill-n">same gender</span><br>+ low-weight cross-gender</td>
+          <td>같은 성별 (분모)<br><span class="pill pill-n">same gender</span><br>+ low-weight cross-gender</td>
+        </tr>
+        <tr>
+          <td class="row-header">Target<br>gradient</td>
+          <td>양방향<br>(anchor &amp; positive 모두)</td>
+          <td>양방향<br><span class="pill pill-n">양쪽 변화</span></td>
+          <td><strong>단방향</strong><br><span class="pill pill-a">detach()</span><br>남성 고정</td>
+          <td><strong>단방향</strong><br><span class="pill pill-a">detach()</span><br>남성 고정</td>
+        </tr>
+        <tr>
+          <td class="row-header">남성 고정<br>추가 메커니즘</td>
+          <td>없음</td>
+          <td>Wass에서<br>detach만</td>
+          <td><span class="pill pill-a">Stability Loss</span><br>MSE(orig, pert)</td>
+          <td><span class="pill pill-w">Det only</span><br>contrastive 미적용</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>예시로 이해하기 (batch=5)</h3>
+
+  <div class="card cg">
+    <div class="cb">
+<span class="cm"># batch: 여(0.7), 남(0.8), 남(0.5), 여(0.3), 남(0.4)</span>
+<span class="cm"># σ ≈ 0.19</span>
+
+<span class="cm"># ── Anchor: 여(0.7) 기준 ──</span>
+
+<span class="cm"># fix8 (이산 bin):</span>
+<span class="cm"># bin2=[0.8,0.7], bin1=[0.5,0.4], bin0=[0.3]</span>
+남(0.8) → <span class="st">positive</span> (같은 bin)   w = <span class="nm">1.0</span>
+남(0.5) → <span class="kw">negative</span> (다른 bin)   w = <span class="nm">0.0</span>  <span class="cm">← 정보 손실!</span>
+남(0.4) → <span class="kw">negative</span> (다른 bin)   w = <span class="nm">0.0</span>
+
+<span class="cm"># fix10/fix11 (Gaussian kernel):</span>
+남(0.8) → <span class="st">strong positive</span>      w = <span class="nm">0.87</span>
+남(0.5) → <span class="st">medium positive</span>      w = <span class="nm">0.57</span>  <span class="cm">← 정보 보존!</span>
+남(0.4) → <span class="st">weak positive</span>        w = <span class="nm">0.29</span>
+
+<span class="cm"># 같은 성별 여(0.3)은 분모(negative)에만 기여</span>
+    </div>
+  </div>
+</section>
+
+<!-- 5 fix10 LOSS -->
+<section id="fix10-loss">
+  <div class="stag t10">05 &mdash; fix10 Loss 상세</div>
+  <h2>Distribution-Fixed Loss (Idea 2)</h2>
+
+  <h3>Stability Loss (fix10 고유)</h3>
+
+  <div class="mb glow10">
+    <div class="ml">Male Feature Stability Loss</div>
+    $$\mathcal{L}_{\text{stab}} = \frac{1}{|\mathcal{M}|}\sum_{i \in \mathcal{M}} \left\|f_i^{\text{pert}} - \text{sg}(f_i^{\text{orig}})\right\|_2^2$$
+  </div>
+
+  <ul class="styled-list">
+    <li>$f_i^{\text{orig}}$: perturbation <strong>없이</strong> DETR 통과 → 원본 feature (torch.no_grad)</li>
+    <li>$f_i^{\text{pert}}$: perturbation <strong>적용 후</strong> DETR 통과 → 변형 feature</li>
+    <li>남성($\mathcal{M}$)에만 적용: "perturbation이 남성 feature를 변화시키면 패널티"</li>
+    <li><strong>DETR forward 2회</strong> 필요 (원본 1회 + perturbed 1회)</li>
+  </ul>
+
+  <div class="cb">
+<span class="cm"># fix10: 원본 feature 추출 (no_grad)</span>
+<span class="kw">with</span> torch.<span class="fn">no_grad</span>():
+    _, feat_orig = detr.<span class="fn">forward_with_features</span>(samples)
+
+<span class="cm"># perturbed feature</span>
+delta = generator(tensors)
+perturbed = clamp_normalized(tensors + delta)
+_, feat_pert = detr.<span class="fn">forward_with_features</span>(perturbed)
+
+<span class="cm"># 남성 feature만 MSE</span>
+loss_stability = F.<span class="fn">mse_loss</span>(
+    feat_pert[male_idx].<span class="fn">mean</span>(dim=<span class="nm">1</span>),
+    feat_orig[male_idx].<span class="fn">mean</span>(dim=<span class="nm">1</span>)
+)
+  </div>
+</section>
+
+<!-- 6 fix11 LOSS -->
+<section id="fix11-loss">
+  <div class="stag t11">06 &mdash; fix11 Loss 상세</div>
+  <h2>Gender-Conditional Loss (Idea 1)</h2>
+
+  <h3 class="h11">성별별 Detection Loss 분리 (fix11 고유)</h3>
+
+  <div class="mb glow11">
+    <div class="ml">Gender-Conditional Structure</div>
+    $$\mathcal{L}_{\text{male}} = \beta_m \cdot \mathcal{L}_{\text{det}}^{\text{male}} \quad\quad \mathcal{L}_{\text{female}} = \lambda_{\text{con}} \cdot \mathcal{L}_{\text{con}} + \beta \cdot \mathcal{L}_{\text{det}}^{\text{female}}$$
+  </div>
+
+  <ul class="styled-list">
+    <li>남성: Detection loss <strong>만</strong> → Generator에게 "남성을 변화시킬 이유 없음" → δ_male ≈ 0</li>
+    <li>여성: Contrastive + Detection → Generator가 적극 조정</li>
+    <li><strong>DETR forward 1회</strong> (기존과 동일, 추가 비용 없음)</li>
+    <li>Stability Loss <strong>없음</strong> — 신호 부재가 곧 고정 메커니즘</li>
+  </ul>
+
+  <div class="cb">
+<span class="cm"># fix11: detection loss를 성별별 분리 (aux_outputs 포함)</span>
+male_outputs = {k: v[male_idx] <span class="kw">for</span> k, v <span class="kw">in</span> outputs.items() <span class="kw">if</span> isinstance(v, Tensor)}
+<span class="kw">if</span> <span class="st">"aux_outputs"</span> <span class="kw">in</span> outputs:
+    male_outputs[<span class="st">"aux_outputs"</span>] = [{k: v[male_idx] <span class="kw">for</span> k, v <span class="kw">in</span> a.items()} <span class="kw">for</span> a <span class="kw">in</span> outputs[<span class="st">"aux_outputs"</span>]]
+loss_det_male, _ = detr.<span class="fn">detection_loss</span>(male_outputs, male_targets)
+
+female_outputs = {k: v[female_idx] <span class="kw">for</span> k, v <span class="kw">in</span> outputs.items() <span class="kw">if</span> isinstance(v, Tensor)}
+<span class="kw">if</span> <span class="st">"aux_outputs"</span> <span class="kw">in</span> outputs:
+    female_outputs[<span class="st">"aux_outputs"</span>] = [{k: v[female_idx] <span class="kw">for</span> k, v <span class="kw">in</span> a.items()} <span class="kw">for</span> a <span class="kw">in</span> outputs[<span class="st">"aux_outputs"</span>]]
+loss_det_female, _ = detr.<span class="fn">detection_loss</span>(female_outputs, female_targets)
+
+<span class="cm"># 남성: det만, 여성: contrastive + det</span>
+total = &lambda;_con * loss_contrastive + &beta; * loss_det_female + &beta;_m * loss_det_male
+  </div>
+</section>
+
+<!-- 7 GRADIENT -->
+<section id="gradient">
+  <div class="stag tg">07 &mdash; Gradient 흐름 비교</div>
+  <h2>남성 Feature에 대한 Gradient 경로</h2>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>Gradient 경로</th><th>fix8</th><th>fix10</th><th>fix11</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>Contrastive → 남성</strong></td>
+          <td class="t8">흐름 (양방향)</td>
+          <td class="t10">차단 (detach)</td>
+          <td class="t11">차단 (detach)</td>
+        </tr>
+        <tr>
+          <td><strong>Wasserstein → 남성</strong></td>
+          <td>detach (고정)</td>
+          <td class="tg">제거됨</td>
+          <td class="tg">제거됨</td>
+        </tr>
+        <tr>
+          <td><strong>Detection → 남성</strong></td>
+          <td class="t8">흐름</td>
+          <td class="t8">흐름 (but Stability가 상쇄)</td>
+          <td class="t11">흐름 (det only → δ≈0 유도)</td>
+        </tr>
+        <tr>
+          <td><strong>남성 feature 변화</strong></td>
+          <td class="t8">상당함</td>
+          <td class="t10">최소 (MSE penalty)</td>
+          <td class="t11">최소 (contrastive 없음)</td>
+        </tr>
+        <tr>
+          <td><strong>고정 메커니즘</strong></td>
+          <td>Wass detach만</td>
+          <td class="t10">explicit (Stability Loss)</td>
+          <td class="t11">implicit (신호 부재)</td>
+        </tr>
+        <tr>
+          <td><strong>고정 보장 강도</strong></td>
+          <td class="t8">약함</td>
+          <td class="t10">강함 (penalty)</td>
+          <td>중간 (indirect)</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="dual">
+    <div class="dual-card d10">
+      <span class="dtag">fix10 gradient</span>
+      <div class="cb" style="font-size:.72rem">
+여성: x→G→δ→DETR→z_a <span class="st">←grad ✓</span>
+                    ↕ sim
+남성: x→G→δ→DETR→z_p.<span class="fn">detach</span>() <span class="kw">←grad ✗</span>
+         ↕
+      feat_pert vs feat_orig
+         → <span class="fn">MSE penalty</span> <span class="st">←grad ✓</span>
+      </div>
+      <p style="margin:.5rem 0;font-size:.85rem"><strong>이중 차단</strong>: detach + stability loss</p>
+    </div>
+    <div class="dual-card d11">
+      <span class="dtag">fix11 gradient</span>
+      <div class="cb" style="font-size:.72rem">
+여성: x→G→δ→DETR→z_a <span class="st">←grad ✓</span>
+                    ↕ sim(detach)
+남성: x→G→δ→DETR→z_p.<span class="fn">detach</span>() <span class="kw">←grad ✗</span>
+         ↓
+      det_male only → <span class="kw">δ≈0 유도</span>
+      </div>
+      <p style="margin:.5rem 0;font-size:.85rem"><strong>단순 차단</strong>: detach + det only (no push signal)</p>
+    </div>
+  </div>
+</section>
+
+<!-- 8 TOTAL LOSS -->
+<section id="total">
+  <div class="stag tg">08 &mdash; Total Loss 비교</div>
+  <h2>최종 손실 함수</h2>
+
+  <div class="mb glow10">
+    <div class="ml">fix10 Total Loss</div>
+    $$\boxed{\mathcal{L}_{\text{fix10}} = \lambda_{\text{con}} \cdot w(e) \cdot \mathcal{L}_{\text{con}} + \lambda_{\text{stab}} \cdot \mathcal{L}_{\text{stab}} + \beta(e) \cdot \mathcal{L}_{\text{det}}}$$
+  </div>
+
+  <div class="mb glow11">
+    <div class="ml">fix11 Total Loss</div>
+    $$\boxed{\mathcal{L}_{\text{fix11}} = \lambda_{\text{con}} \cdot w(e) \cdot \mathcal{L}_{\text{con}} + \beta(e) \cdot \mathcal{L}_{\text{det}}^{f} + \beta_m \cdot \mathcal{L}_{\text{det}}^{m}}$$
+  </div>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th>파라미터</th><th>fix10</th><th>fix11</th></tr></thead>
+      <tbody>
+        <tr><td>$\lambda_{\text{con}}$</td><td>1.0</td><td>1.0</td></tr>
+        <tr><td>$\tau$</td><td>0.1</td><td>0.1</td></tr>
+        <tr><td>bandwidth_scale</td><td>1.0</td><td>1.0</td></tr>
+        <tr><td>$\beta$</td><td>0.5→0.6</td><td>0.5→0.6</td></tr>
+        <tr><td class="t10">$\lambda_{\text{stab}}$</td><td class="t10">0.5</td><td class="tx">없음</td></tr>
+        <tr><td class="t11">$\beta_m$ (male det)</td><td class="tx">없음 (통합)</td><td class="t11">0.5</td></tr>
+        <tr><td><strong>총 하이퍼파라미터</strong></td><td><strong>5개</strong></td><td><strong>5개</strong></td></tr>
+        <tr><td><strong>DETR forward</strong></td><td class="t8">2회</td><td class="tg">1회</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- 9 CODE -->
+<section id="code">
+  <div class="stag tg">09 &mdash; 핵심 코드 비교</div>
+  <h2>Training Loop 차이</h2>
+
+  <div class="dual">
+    <div class="dual-card d10">
+      <span class="dtag">fix10 training loop</span>
+      <div class="cb" style="font-size:.72rem">
+<span class="cm"># 1) 원본 feature (no_grad)</span>
+<span class="kw">with</span> torch.no_grad():
+  _, feat_orig = detr(samples)
+
+<span class="cm"># 2) perturbation</span>
+delta = generator(tensors)
+pert = clamp(tensors + delta)
+outputs, feat_pert = detr(pert)
+
+<span class="cm"># 3) contrastive (female→male)</span>
+loss_con = con_fn(proj, scores, g)
+
+<span class="cm"># 4) stability (male only)</span>
+loss_stab = <span class="fn">MSE</span>(
+  feat_pert[male], feat_orig[male])
+
+<span class="cm"># 5) detection (전체)</span>
+loss_det = detr.det_loss(out, tgt)
+
+<span class="cm"># total</span>
+L = &lambda;*loss_con + &lambda;s*loss_stab
+  + &beta;*loss_det
+      </div>
+    </div>
+    <div class="dual-card d11">
+      <span class="dtag">fix11 training loop</span>
+      <div class="cb" style="font-size:.72rem">
+<span class="cm"># 1) NO extra forward needed</span>
+
+
+<span class="cm"># 2) perturbation</span>
+delta = generator(tensors)
+pert = clamp(tensors + delta)
+outputs, features = detr(pert)
+
+<span class="cm"># 3) contrastive (female→male)</span>
+loss_con = con_fn(proj, scores, g)
+
+<span class="cm"># 4) det split by gender</span>
+loss_det_m = detr.det_loss(
+  out[male], tgt_male)
+loss_det_f = detr.det_loss(
+  out[female], tgt_female)
+
+<span class="cm"># total</span>
+L = &lambda;*loss_con + &beta;*loss_det_f
+  + &beta;m*loss_det_m
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 10 TABLE -->
+<section id="table">
+  <div class="stag tg">10 &mdash; 종합 비교표</div>
+  <h2>fix8 vs fix10 vs fix11</h2>
+
+  <div class="tw">
+    <table>
+      <thead><tr><th></th><th>fix8 (baseline)</th><th>fix10 (Stability)</th><th>fix11 (Conditional)</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Loss 구조</strong></td><td>SupCon + Wass + Det</td><td class="t10">Contrastive + Stability + Det</td><td class="t11">Contrastive + Det_f + Det_m</td></tr>
+        <tr><td><strong>Positive weight</strong></td><td>이산 bin (0/1)</td><td class="tg">Gaussian kernel (0~1)</td><td class="tg">Gaussian kernel (0~1)</td></tr>
+        <tr><td><strong>Target detach</strong></td><td class="t8">없음</td><td class="tg">있음</td><td class="tg">있음</td></tr>
+        <tr><td><strong>Wasserstein</strong></td><td>있음</td><td class="tg">제거</td><td class="tg">제거</td></tr>
+        <tr><td><strong>남성 고정</strong></td><td class="t8">Wass detach만</td><td class="t10">detach + MSE penalty</td><td class="t11">detach + det only</td></tr>
+        <tr><td><strong>고정 강도</strong></td><td class="t8">약</td><td class="t10">강 (explicit)</td><td class="t11">중 (implicit)</td></tr>
+        <tr><td><strong>DETR forward</strong></td><td>1회</td><td class="t8">2회</td><td class="tg">1회</td></tr>
+        <tr><td><strong>추가 하이퍼파라미터</strong></td><td>λ_w, n_bins</td><td class="t10">λ_stab, bandwidth</td><td class="t11">β_male, bandwidth</td></tr>
+        <tr><td><strong>Loss 목적</strong></td><td class="t8">불명확 (중복)</td><td class="tg">명확</td><td class="tg">명확</td></tr>
+        <tr><td><strong>구현 복잡도</strong></td><td>중</td><td>중</td><td class="tg">낮음</td></tr>
+        <tr><td><strong>논문 설명</strong></td><td>—</td><td class="t10">수식으로 명확</td><td class="t11">직관적</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- 11 QNA -->
+<section id="qna">
+  <div class="stag tg">11 &mdash; Q&A</div>
+  <h2>예상 질문</h2>
+
+  <div class="card c10" style="margin-top:1.5rem">
+    <h4 style="margin-top:0">Q1. fix10의 Stability Loss가 MSE인 이유? 다른 metric은?</h4>
+    <p style="margin:0">MSE는 가장 단순하고 gradient가 안정적입니다. L1, cosine distance 등도 가능하지만, MSE가 "feature 벡터의 유클리드 거리 보존"이라는 의미가 가장 직관적이며, 추후 ablation 대상입니다.</p>
+  </div>
+
+  <div class="card c11">
+    <h4 style="margin-top:0">Q2. fix11에서 남성이 정말 안 변하나? Det loss로도 gradient가 흐르는데?</h4>
+    <p style="margin:0">Det loss는 "검출 결과를 유지하라"는 보수적 신호입니다. Generator 입장에서 남성 perturbation의 최적 해는 δ≈0입니다. 변화시킬 이유(contrastive)가 없으므로 자연스럽게 최소 변화. 다만 fix10의 MSE penalty만큼 강력한 보장은 아닙니다.</p>
+  </div>
+
+  <div class="card cs">
+    <h4 style="margin-top:0">Q3. SupCon 원본은 augmentation이 필수인데, 우리는 왜 안 쓰나?</h4>
+    <p style="margin:0">SupCon 원본은 같은 이미지의 2개 augmented view로 positive pair를 만듭니다. 우리는 <strong>cross-gender pair</strong>가 positive이므로 augmentation이 불필요합니다. 또한 Generator의 perturbation 자체가 일종의 learned augmentation 역할을 합니다.</p>
+  </div>
+
+  <div class="card cg">
+    <h4 style="margin-top:0">Q4. 두 실험 중 어떤 걸 먼저 돌려야 하나?</h4>
+    <p style="margin:0"><strong>fix11을 먼저</strong> 권장합니다. 더 단순하고 추가 비용이 없어 baseline으로 적합합니다. fix11이 충분한 성능을 보이면 그것으로 채택하고, 남성 feature 변화가 크다면 fix10의 stability loss를 추가하는 전략이 효율적입니다.</p>
+  </div>
+
+  <div class="card cg">
+    <h4 style="margin-top:0">Q5. Gaussian kernel의 bandwidth_scale을 어떻게 정하나?</h4>
+    <p style="margin:0">기본값 1.0은 "배치 score 분포의 1 표준편차 내 pair를 strong positive로 취급"합니다. 0.5(엄격)~2.0(관대) 범위에서 실험하며, detection score 분포가 좁으면(0.7~0.9) 작은 값이, 넓으면 큰 값이 적합합니다.</p>
+  </div>
+</section>
+
+</div>
+
+<footer><strong>FAAP fix10 vs fix11 Comparison</strong> &mdash; Trustworthy AI Lab, 인천대학교 정보통신공학과<br>Generated 2026-03-25</footer>
+<button class="back-top" id="bt" onclick="window.scrollTo({top:0,behavior:'smooth'})">&uarr;</button>
+
+<script>
+const obs=new IntersectionObserver(e=>{e.forEach(x=>{if(x.isIntersecting)x.target.classList.add('visible')})},{threshold:.08,rootMargin:'0px 0px -30px 0px'});
+document.querySelectorAll('section').forEach(s=>obs.observe(s));
+const np=document.getElementById('navProg'),bt=document.getElementById('bt'),secs=document.querySelectorAll('section[id]'),nls=document.querySelectorAll('.nav-link');
+window.addEventListener('scroll',()=>{
+  bt.classList.toggle('show',scrollY>500);
+  const h=document.documentElement.scrollHeight-innerHeight;
+  np.style.width=h>0?Math.min(scrollY/h*100,100)+'%':'0%';
+  let c='';secs.forEach(s=>{if(scrollY>=s.offsetTop-120)c=s.id});
+  nls.forEach(l=>l.classList.toggle('active',l.getAttribute('href')==='#'+c));
+});
+</script>
+</body>
+</html>

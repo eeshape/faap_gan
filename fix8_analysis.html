@@ -1,0 +1,1559 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FAAP fix8 — Gender-Centered SupCon Analysis</title>
+<script>
+MathJax = {
+  tex: { inlineMath: [['$','$']], displayMath: [['$$','$$']] },
+  svg: { fontCache: 'global' }
+};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Playfair+Display:ital,wght@0,700;0,900;1,700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink: #1a1a2e;
+  --paper: #f8f6f1;
+  --paper-warm: #f3efe8;
+  --accent: #c0392b;
+  --accent-light: #e74c3c;
+  --teal: #16a085;
+  --teal-dark: #0e7a64;
+  --blue: #2c3e6b;
+  --blue-light: #3d5a99;
+  --gold: #d4a843;
+  --muted: #6b6b7b;
+  --border: #d5d0c8;
+  --code-bg: #2b2d3a;
+  --code-fg: #e8e6df;
+  --highlight: #fef9e7;
+  --shadow: 0 2px 20px rgba(26,26,46,0.08);
+  --shadow-lg: 0 8px 40px rgba(26,26,46,0.12);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'IBM Plex Sans KR', sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 16px;
+  line-height: 1.75;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── HERO ── */
+.hero {
+  position: relative;
+  min-height: 70vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(165deg, #1a1a2e 0%, #2c3e6b 40%, #16a085 100%);
+  overflow: hidden;
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 600px 400px at 20% 50%, rgba(192,57,43,0.15), transparent),
+    radial-gradient(ellipse 500px 500px at 80% 30%, rgba(22,160,133,0.2), transparent);
+  pointer-events: none;
+}
+
+.hero-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-size: 60px 60px;
+  mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, black 20%, transparent 70%);
+}
+
+.hero-content {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  padding: 4rem 2rem;
+  animation: fadeUp 1s ease-out;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.hero-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.5);
+  margin-bottom: 1.5rem;
+}
+
+.hero h1 {
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(2.5rem, 5vw, 4.2rem);
+  font-weight: 900;
+  color: #fff;
+  line-height: 1.15;
+  margin-bottom: 1rem;
+}
+
+.hero h1 em {
+  font-style: italic;
+  color: var(--gold);
+}
+
+.hero-sub {
+  font-size: 1.1rem;
+  color: rgba(255,255,255,0.65);
+  font-weight: 300;
+  max-width: 600px;
+  margin: 0 auto 2.5rem;
+}
+
+.hero-badges {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.72rem;
+  padding: 0.4rem 1rem;
+  border-radius: 100px;
+  border: 1px solid rgba(255,255,255,0.2);
+  color: rgba(255,255,255,0.7);
+  background: rgba(255,255,255,0.05);
+  backdrop-filter: blur(4px);
+  opacity: 0;
+  animation: fadeUp 0.6s ease-out forwards;
+}
+
+.badge:nth-child(1) { animation-delay: 0.5s; }
+.badge:nth-child(2) { animation-delay: 0.65s; }
+.badge:nth-child(3) { animation-delay: 0.8s; }
+.badge:nth-child(4) { animation-delay: 0.95s; }
+
+.badge.accent {
+  border-color: var(--accent-light);
+  color: var(--accent-light);
+  background: rgba(192,57,43,0.1);
+}
+
+/* Hero grain texture */
+.hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+.hero-label {
+  opacity: 0;
+  animation: fadeUp 0.6s ease-out 0.1s forwards;
+}
+
+.hero h1 {
+  opacity: 0;
+  animation: fadeUp 0.7s ease-out 0.2s forwards;
+}
+
+.hero-sub {
+  opacity: 0;
+  animation: fadeUp 0.7s ease-out 0.35s forwards;
+}
+
+/* ── NAV PROGRESS BAR ── */
+.nav-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent), var(--teal));
+  width: 0%;
+  transition: width 0.15s ease-out;
+}
+
+/* ── NAV ── */
+.nav-bar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(248,246,241,0.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 2rem;
+  transition: box-shadow 0.3s;
+}
+
+.nav-bar.scrolled { box-shadow: var(--shadow); }
+
+.nav-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: flex;
+  gap: 0.25rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 0.6rem 0;
+}
+.nav-inner::-webkit-scrollbar { display: none; }
+
+.nav-link {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--muted);
+  text-decoration: none;
+  padding: 0.4rem 0.9rem;
+  border-radius: 6px;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.nav-link:hover { color: var(--ink); background: rgba(0,0,0,0.04); }
+.nav-link.active { color: var(--accent); background: rgba(192,57,43,0.06); }
+
+/* ── LAYOUT ── */
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 2rem 6rem;
+}
+
+/* ── SECTIONS ── */
+section {
+  margin-top: 5rem;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+
+section.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.section-num {
+  font-family: 'Playfair Display', serif;
+  font-size: 4rem;
+  font-weight: 900;
+  color: rgba(192,57,43,0.08);
+  line-height: 1;
+  margin-bottom: -0.5rem;
+  transition: color 0.4s ease;
+}
+
+section:hover .section-num {
+  color: rgba(192,57,43,0.15);
+}
+
+section > h2 {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid var(--accent);
+  display: inline-block;
+}
+
+section > h2 + p { margin-top: 1rem; }
+
+h3 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--blue);
+  margin: 2.5rem 0 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+h3::before {
+  content: '';
+  width: 4px;
+  height: 1.1em;
+  background: var(--teal);
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 1.5rem 0 0.5rem;
+  color: var(--ink);
+}
+
+p { margin-bottom: 1rem; }
+
+/* ── CARDS ── */
+.card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 2rem;
+  margin: 1.5rem 0;
+  box-shadow: var(--shadow);
+  border: 1px solid rgba(0,0,0,0.04);
+}
+
+.card-accent {
+  border-left: 4px solid var(--accent);
+}
+
+.card-teal {
+  border-left: 4px solid var(--teal);
+}
+
+.card-blue {
+  border-left: 4px solid var(--blue);
+}
+
+.card-gold {
+  border-left: 4px solid var(--gold);
+  background: var(--highlight);
+}
+
+.card h4 {
+  margin-top: 0;
+  font-size: 1.05rem;
+}
+
+/* ── MATH BLOCKS ── */
+.math-block {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.5rem 2rem;
+  margin: 1.5rem 0;
+  overflow-x: auto;
+  text-align: center;
+  box-shadow: 0 1px 8px rgba(0,0,0,0.04);
+}
+
+.math-block.highlight {
+  background: linear-gradient(135deg, #fef9e7, #fdf2d5);
+  border-color: var(--gold);
+  box-shadow: 0 2px 12px rgba(212,168,67,0.12);
+}
+
+.math-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--muted);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 0.75rem;
+  text-align: left;
+}
+
+/* ── CODE ── */
+.code-block {
+  background: var(--code-bg);
+  color: var(--code-fg);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.82rem;
+  line-height: 1.7;
+  border-radius: 10px;
+  padding: 1.25rem 1.5rem;
+  margin: 1rem 0;
+  overflow-x: auto;
+  position: relative;
+}
+
+.code-block .code-label {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.8rem;
+  font-size: 0.65rem;
+  color: rgba(255,255,255,0.3);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.code-block .comment { color: #7f8c8d; }
+.code-block .keyword { color: #c678dd; }
+.code-block .func { color: #61afef; }
+.code-block .string { color: #98c379; }
+.code-block .num { color: #d19a66; }
+.code-block .op { color: #e5c07b; }
+
+code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.85em;
+  background: rgba(0,0,0,0.06);
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+}
+
+/* ── TABLES ── */
+.table-wrap {
+  overflow-x: auto;
+  margin: 1.5rem 0;
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  font-size: 0.9rem;
+}
+
+thead {
+  background: var(--ink);
+  color: #fff;
+}
+
+th {
+  padding: 0.8rem 1rem;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.8rem;
+  letter-spacing: 0.5px;
+}
+
+td {
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid #eee;
+}
+
+tbody tr:hover { background: rgba(22,160,133,0.03); }
+
+.td-accent { color: var(--accent); font-weight: 600; }
+.td-teal { color: var(--teal-dark); font-weight: 600; }
+
+/* ── DIAGRAM ── */
+.diagram {
+  background: #fff;
+  border-radius: 12px;
+  padding: 2rem;
+  margin: 2rem 0;
+  box-shadow: var(--shadow);
+  overflow-x: auto;
+}
+
+.pipeline {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  min-width: 700px;
+  position: relative;
+}
+
+.pipe-step {
+  flex: 1;
+  text-align: center;
+  padding: 1.2rem 0.8rem;
+  position: relative;
+}
+
+.pipe-step::after {
+  content: '';
+  position: absolute;
+  right: -2px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--border), var(--muted));
+  z-index: 1;
+}
+
+.pipe-step::before {
+  content: '';
+  position: absolute;
+  right: -2px;
+  top: 50%;
+  transform: translateY(-50%) rotate(45deg);
+  width: 7px;
+  height: 7px;
+  border-top: 2px solid var(--muted);
+  border-right: 2px solid var(--muted);
+  z-index: 2;
+}
+
+.pipe-step:last-child::after,
+.pipe-step:last-child::before { display: none; }
+
+.pipe-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 0.6rem;
+  font-size: 1.3rem;
+}
+
+.pipe-icon.red { background: rgba(192,57,43,0.1); }
+.pipe-icon.teal { background: rgba(22,160,133,0.1); }
+.pipe-icon.blue { background: rgba(44,62,107,0.1); }
+.pipe-icon.gold { background: rgba(212,168,67,0.15); }
+
+.pipe-step {
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+.diagram.animated .pipe-step {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.diagram.animated .pipe-step:nth-child(1) { transition-delay: 0s; }
+.diagram.animated .pipe-step:nth-child(2) { transition-delay: 0.1s; }
+.diagram.animated .pipe-step:nth-child(3) { transition-delay: 0.2s; }
+.diagram.animated .pipe-step:nth-child(4) { transition-delay: 0.3s; }
+.diagram.animated .pipe-step:nth-child(5) { transition-delay: 0.4s; }
+.diagram.animated .pipe-step:nth-child(6) { transition-delay: 0.5s; }
+
+.pipe-title {
+  font-weight: 600;
+  font-size: 0.82rem;
+  margin-bottom: 0.3rem;
+}
+
+.pipe-desc {
+  font-size: 0.72rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+/* ── COMPARISON ── */
+.compare-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin: 1.5rem 0;
+}
+
+@media (max-width: 700px) {
+  .compare-grid { grid-template-columns: 1fr; }
+}
+
+.compare-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: var(--shadow);
+  border-top: 4px solid;
+  position: relative;
+}
+
+.compare-card.male {
+  border-top-color: var(--blue-light);
+  background: linear-gradient(180deg, rgba(44,62,107,0.03) 0%, #fff 40%);
+}
+.compare-card.female {
+  border-top-color: var(--accent);
+  background: linear-gradient(180deg, rgba(192,57,43,0.03) 0%, #fff 40%);
+}
+
+.compare-card .tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+  display: inline-block;
+  margin-bottom: 0.75rem;
+}
+
+.compare-card.male .tag { background: rgba(44,62,107,0.08); color: var(--blue); }
+.compare-card.female .tag { background: rgba(192,57,43,0.08); color: var(--accent); }
+
+/* ── CALLOUT ── */
+.callout {
+  display: flex;
+  gap: 1rem;
+  background: var(--highlight);
+  border-radius: 10px;
+  padding: 1.25rem 1.5rem;
+  margin: 1.5rem 0;
+  border: 1px solid rgba(212,168,67,0.3);
+}
+
+.callout-icon {
+  font-size: 1.3rem;
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+.callout-body { font-size: 0.92rem; }
+.callout-body strong { color: var(--ink); }
+
+/* ── TIMELINE / SCHEDULE ── */
+.schedule-bar {
+  display: flex;
+  border-radius: 8px;
+  overflow: hidden;
+  margin: 1rem 0 0.5rem;
+  height: 36px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.schedule-bar > div {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.5rem;
+  white-space: nowrap;
+}
+
+.sch-warmup { background: var(--teal); flex: 8; }
+.sch-hold { background: var(--blue); flex: 6; }
+.sch-cooldown { background: var(--accent); flex: 10; }
+
+.schedule-labels {
+  display: flex;
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-bottom: 1.5rem;
+}
+
+.schedule-labels span { flex: 1; text-align: center; }
+
+/* ── LIST ── */
+.styled-list {
+  list-style: none;
+  margin: 0.5rem 0 1rem 0;
+}
+
+.styled-list li {
+  padding: 0.3rem 0 0.3rem 1.5rem;
+  position: relative;
+}
+
+.styled-list li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.85rem;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--teal);
+}
+
+/* ── FOOTER ── */
+footer {
+  text-align: center;
+  padding: 3rem 2rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  border-top: 1px solid var(--border);
+}
+
+footer strong { color: var(--ink); }
+
+/* ── CARD HOVER ── */
+.card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* ── BACK TO TOP ── */
+.back-top {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: #fff;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.3s, transform 0.3s;
+  z-index: 99;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-lg);
+}
+.back-top.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+.back-top:hover {
+  background: var(--accent);
+}
+
+/* ── MATHJAX LOADING ── */
+.math-loading {
+  text-align: center;
+  padding: 1rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-style: italic;
+}
+
+/* ── SCROLL HINT for tables on mobile ── */
+.table-wrap {
+  position: relative;
+}
+.table-wrap::after {
+  content: '← 스크롤 →';
+  display: none;
+  text-align: center;
+  font-size: 0.7rem;
+  color: var(--muted);
+  padding: 0.3rem 0;
+}
+@media (max-width: 640px) {
+  .table-wrap::after { display: block; }
+}
+
+/* ── RESPONSIVE ── */
+@media (max-width: 640px) {
+  .container { padding: 0 1.25rem 4rem; }
+  section { margin-top: 3.5rem; }
+  .section-num { font-size: 3rem; }
+  section > h2 { font-size: 1.4rem; }
+  .card { padding: 1.25rem; }
+  .math-block { padding: 1rem; }
+}
+
+/* Print */
+@media print {
+  .nav-bar { display: none; }
+  .hero { min-height: auto; padding: 2rem; }
+  section { opacity: 1 !important; transform: none !important; }
+  .back-top { display: none !important; }
+  .card:hover { transform: none; box-shadow: var(--shadow); }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════ HERO ═══════════ -->
+<header class="hero">
+  <div class="hero-grid"></div>
+  <div class="hero-content">
+    <div class="hero-label">Trustworthy AI Lab &mdash; Weekly Report</div>
+    <h1>FAAP fix8<br>Gender-Centered <em>SupCon</em></h1>
+    <p class="hero-sub">
+      GAN 기반 Discriminator를 제거하고 Supervised Contrastive Learning으로 대체한 공정성 실험.
+      Anchor 방향에 따른 성별 간 feature 정렬 효과를 비교 분석합니다.
+    </p>
+    <div class="hero-badges">
+      <span class="badge">PyTorch</span>
+      <span class="badge">DETR (Frozen)</span>
+      <span class="badge">SupCon Loss</span>
+      <span class="badge accent">fix8 Ablation</span>
+    </div>
+  </div>
+</header>
+
+<!-- ═══════════ NAV ═══════════ -->
+<nav class="nav-bar" id="nav">
+  <div class="nav-progress" id="navProgress"></div>
+  <div class="nav-inner">
+    <a class="nav-link" href="#overview">Overview</a>
+    <a class="nav-link" href="#pipeline">Pipeline</a>
+    <a class="nav-link" href="#projection">Projection Head</a>
+    <a class="nav-link" href="#quality-bin">Quality Bin</a>
+    <a class="nav-link" href="#supcon">SupCon Loss</a>
+    <a class="nav-link" href="#wasserstein">Wasserstein</a>
+    <a class="nav-link" href="#detection">Detection Loss</a>
+    <a class="nav-link" href="#total">Total Loss</a>
+    <a class="nav-link" href="#scheduling">Scheduling</a>
+    <a class="nav-link" href="#comparison">Anchor 비교</a>
+    <a class="nav-link" href="#qna">Q&A</a>
+  </div>
+</nav>
+
+<!-- ═══════════ CONTENT ═══════════ -->
+<div class="container">
+
+<!-- ── 1. OVERVIEW ── -->
+<section id="overview">
+  <div class="section-num">01</div>
+  <h2>Background &amp; Motivation</h2>
+
+  <p>기존 논문 버전(7th.py)은 <strong>GAN 방식</strong>으로 공정성을 달성합니다. Generator가 perturbation을 생성하고, Discriminator가 DETR feature에서 성별을 분류하는 적대적 학습 구조입니다.</p>
+
+  <p><strong>fix8(이 코드)</strong>은 GAN의 Discriminator를 제거하고 <strong>Supervised Contrastive Learning(SupCon)</strong>으로 대체한 실험입니다.</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>구분</th><th>7th.py (논문 버전)</th><th>fix8 (이 코드)</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>공정성 메커니즘</td><td>GenderDiscriminator (GAN)</td><td class="td-teal">ProjectionHead + SupCon Loss</td></tr>
+        <tr><td>학습 구조</td><td>D/G 번갈아 학습 (k_d=4)</td><td class="td-teal">G만 학습</td></tr>
+        <tr><td>공정성 손실</td><td>Adversarial + Entropy</td><td class="td-teal">Gender-Centered SupCon</td></tr>
+        <tr><td>손실 구성</td><td>$\lambda_f \cdot L_{\text{fair}} + \beta \cdot L_{\text{det}} + \lambda_w \cdot L_{\text{wass}}$</td><td class="td-teal">$\lambda_{\text{sc}} \cdot L_{\text{SupCon}} + \beta \cdot L_{\text{det}} + \lambda_w \cdot L_{\text{wass}}$</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout">
+    <div class="callout-icon">&#128161;</div>
+    <div class="callout-body">
+      <strong>왜 GAN 대신 Contrastive?</strong><br>
+      GAN은 D/G 균형 맞추기가 어렵고 학습이 불안정합니다 (k_d=4로 D를 4번 학습시키는 트릭 필요).
+      SupCon은 학습이 더 안정적이며, "어떤 feature를 가깝게 만들지"를 quality bin으로 직접 지정할 수 있습니다.
+    </div>
+  </div>
+</section>
+
+<!-- ── 2. PIPELINE ── -->
+<section id="pipeline">
+  <div class="section-num">02</div>
+  <h2>전체 Pipeline</h2>
+
+  <p>한 배치(batch_size=5, 남녀 혼합)가 처리되는 전체 흐름입니다.</p>
+
+  <div class="diagram">
+    <div class="pipeline">
+      <div class="pipe-step">
+        <div class="pipe-icon red">&#128444;</div>
+        <div class="pipe-title">Input</div>
+        <div class="pipe-desc">이미지 배치<br>(남녀 혼합)</div>
+      </div>
+      <div class="pipe-step">
+        <div class="pipe-icon teal">G</div>
+        <div class="pipe-title">Generator</div>
+        <div class="pipe-desc">perturbation<br>$\delta = G(x)$</div>
+      </div>
+      <div class="pipe-step">
+        <div class="pipe-icon blue">+</div>
+        <div class="pipe-title">Perturb</div>
+        <div class="pipe-desc">$\tilde{x} = \text{clamp}(x + \delta)$</div>
+      </div>
+      <div class="pipe-step">
+        <div class="pipe-icon gold">&#129302;</div>
+        <div class="pipe-title">DETR (frozen)</div>
+        <div class="pipe-desc">detection 결과<br>+ decoder features</div>
+      </div>
+      <div class="pipe-step">
+        <div class="pipe-icon teal">h</div>
+        <div class="pipe-title">Proj Head</div>
+        <div class="pipe-desc">features → 128d<br>L2 normalized</div>
+      </div>
+      <div class="pipe-step">
+        <div class="pipe-icon red">&#8721;</div>
+        <div class="pipe-title">Loss</div>
+        <div class="pipe-desc">SupCon + Wass<br>+ Detection</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card card-gold">
+    <h4>학습되는 모듈</h4>
+    <p style="margin-bottom:0">
+      <strong>Generator</strong>와 <strong>ProjectionHead</strong>만 학습됩니다.
+      DETR는 완전히 동결(frozen)되어 있어 gradient가 흐르지 않습니다.
+    </p>
+  </div>
+</section>
+
+<!-- ── 3. PROJECTION HEAD ── -->
+<section id="projection">
+  <div class="section-num">03</div>
+  <h2>Projection Head</h2>
+
+  <p>DETR decoder features를 contrastive learning에 적합한 임베딩 공간으로 변환하는 모듈입니다.</p>
+
+  <div class="math-block">
+    <div class="math-label">Step 1 &mdash; Mean Pooling</div>
+    $$\bar{f}_i = \frac{1}{Q}\sum_{q=1}^{Q} f_i^{(q)} \in \mathbb{R}^{256}$$
+  </div>
+
+  <p>여기서 $f_i \in \mathbb{R}^{Q \times 256}$ 은 이미지 $i$의 DETR decoder features이며, $Q=100$은 DETR의 object query 개수입니다. 100개의 query 벡터를 평균 내어 이미지 하나를 대표하는 256차원 벡터로 만듭니다.</p>
+
+  <div class="math-block">
+    <div class="math-label">Step 2 &mdash; 2-Layer MLP</div>
+    $$h(\bar{f}_i) = W_2 \cdot \text{ReLU}(W_1 \bar{f}_i + b_1) + b_2 \in \mathbb{R}^{128}$$
+  </div>
+
+  <p>256차원 → 256차원 (hidden) → 128차원 (output)의 2-layer MLP를 통과합니다. 중간에 ReLU 활성화와 Dropout(p=0.1)이 적용됩니다.</p>
+
+  <div class="math-block highlight">
+    <div class="math-label">Step 3 &mdash; L2 Normalization</div>
+    $$z_i = \frac{h(\bar{f}_i)}{\|h(\bar{f}_i)\|_2} \in \mathbb{R}^{128}, \quad \|z_i\| = 1$$
+  </div>
+
+  <div class="callout">
+    <div class="callout-icon">&#128270;</div>
+    <div class="callout-body">
+      <strong>L2 정규화를 하는 이유:</strong> $\|z_i\|=1$이면 두 벡터의 내적이 곧 cosine similarity가 됩니다.<br>
+      $z_i^\top z_j = \|z_i\|\|z_j\|\cos\theta_{ij} = \cos\theta_{ij}$<br>
+      따라서 별도의 cosine 계산 없이 <strong>행렬 곱</strong>만으로 모든 쌍의 유사도를 한 번에 구할 수 있습니다.
+    </div>
+  </div>
+
+  <div class="code-block">
+    <span class="code-label">Python</span>
+<span class="comment"># line 72-77</span>
+<span class="keyword">def</span> <span class="func">forward</span>(self, x):
+    pooled = x.<span class="func">mean</span>(dim=<span class="num">1</span>)                     <span class="comment"># f̄_i : (B, 256)</span>
+    proj = self.net(pooled)                     <span class="comment"># h(f̄_i) : (B, 128)</span>
+    <span class="keyword">return</span> F.<span class="func">normalize</span>(proj, dim=-<span class="num">1</span>, p=<span class="num">2</span>)       <span class="comment"># z_i : (B, 128), ||z||=1</span>
+  </div>
+</section>
+
+<!-- ── 4. QUALITY BIN ── -->
+<section id="quality-bin">
+  <div class="section-num">04</div>
+  <h2>Quality Bin 할당</h2>
+
+  <p>배치 내 각 이미지에 "검출 품질 등급"을 부여합니다. 이 등급이 contrastive loss에서 positive/negative를 결정하는 기준이 됩니다.</p>
+
+  <h3>Detection Score 계산</h3>
+
+  <p>각 이미지의 detection 품질을 하나의 스칼라 score로 요약합니다.</p>
+
+  <div class="math-block">
+    <div class="math-label">Image-level Detection Score (기본 방법)</div>
+    $$s_i = \frac{1}{\min(K, Q)} \sum_{q \in \text{top-}K} \max_c \; p_{i,q,c}$$
+  </div>
+
+  <ul class="styled-list">
+    <li>$p_{i,q,c}$: 이미지 $i$, query $q$, 클래스 $c$의 softmax 확률</li>
+    <li>각 query에서 가장 높은 클래스 확률을 취함 (no-object 클래스 제외)</li>
+    <li>상위 $K=10$개 query의 평균이 해당 이미지의 detection score</li>
+  </ul>
+
+  <h3>Bin 분할</h3>
+
+  <p>배치 내 $N$개 이미지의 score를 $K=3$개의 등급으로 분할합니다.</p>
+
+  <div class="math-block">
+    <div class="math-label">Quantile 기반 경계값</div>
+    $$b_k = Q\!\left(s,\; \frac{k}{K}\right), \quad k = 1, \ldots, K\!-\!1$$
+  </div>
+
+  <div class="math-block">
+    <div class="math-label">Bin 라벨 할당</div>
+    $$\ell_i = \text{bucketize}(s_i,\; [b_1, b_2]) \;\in\; \{0, 1, 2\}$$
+  </div>
+
+  <p>$Q(s, p)$는 score 분포의 $p$-분위수입니다. $K=3$이면 경계값이 33%, 67% 분위수에서 잡혀 배치를 3등분합니다.</p>
+
+  <div class="card card-teal">
+    <h4>예시 (batch=5)</h4>
+    <div class="code-block">
+<span class="comment"># scores = [0.8, 0.7, 0.5, 0.3, 0.4]</span>
+<span class="comment"># quantile boundaries: b₁=0.4, b₂=0.7</span>
+
+이미지0 (남, score=0.8) → <span class="string">bin 2</span> (상위)
+이미지1 (여, score=0.7) → <span class="string">bin 2</span> (상위)  ← 이미지0과 같은 bin!
+이미지2 (남, score=0.5) → <span class="string">bin 1</span> (중위)
+이미지3 (여, score=0.3) → <span class="string">bin 0</span> (하위)
+이미지4 (남, score=0.4) → <span class="string">bin 1</span> (중위)  ← 이미지3과 다른 bin
+    </div>
+    <p style="margin:0.75rem 0 0"><strong>의미:</strong> 이미지0(남)과 이미지1(여)은 같은 bin 2 → 서로 positive 관계.
+    이미지0(남)과 이미지3(여)은 다른 bin → negative 관계.</p>
+  </div>
+</section>
+
+<!-- ── 5. SUPCON LOSS ── -->
+<section id="supcon">
+  <div class="section-num">05</div>
+  <h2>Gender-Centered SupCon Loss</h2>
+
+  <p>이 코드의 <strong>핵심 손실 함수</strong>입니다. 특정 성별만 anchor로 지정하여 contrastive gradient의 방향을 제어합니다.</p>
+
+  <h3>집합 정의</h3>
+
+  <p>배치 내 인덱스를 성별에 따라 분리합니다.</p>
+
+  <div class="math-block">
+    <div class="math-label">Anchor &amp; Target 집합</div>
+    $$\mathcal{A} = \{i \mid \text{gender}_i = \text{anchor\_gender}\}$$
+    $$\mathcal{T} = \{j \mid \text{gender}_j = \text{target\_gender}\}$$
+  </div>
+
+  <p>각 anchor $a \in \mathcal{A}$에 대한 <strong>positive 집합</strong>을 정의합니다:</p>
+
+  <div class="math-block">
+    <div class="math-label">Positive 집합 &mdash; 반대 성별 &amp; 같은 quality bin</div>
+    $$\mathcal{P}(a) = \{j \in \mathcal{T} \mid \ell_j = \ell_a\}$$
+  </div>
+
+  <h3>Similarity 계산</h3>
+
+  <div class="math-block">
+    <div class="math-label">Temperature-scaled Cosine Similarity</div>
+    $$\text{sim}(i, j) = \frac{z_i^\top z_j}{\tau}, \quad \tau = 0.1$$
+  </div>
+
+  <p>L2 정규화된 벡터의 내적이므로 $z_i^\top z_j = \cos\theta_{ij}$ 이고, $\tau=0.1$로 나누면 유사도 값이 <strong>10배 증폭</strong>됩니다.</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>$\tau$</th><th>$\cos\theta=0.9$ 일 때</th><th>$\cos\theta=0.1$ 일 때</th><th>차이 배율</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>1.0</td><td>0.9</td><td>0.1</td><td>&times;1</td></tr>
+        <tr><td class="td-accent">0.1 (사용값)</td><td class="td-accent">9.0</td><td class="td-accent">1.0</td><td class="td-accent">&times;10</td></tr>
+        <tr><td>0.01</td><td>90.0</td><td>10.0</td><td>&times;100</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>$\tau$가 작을수록 softmax가 가장 가까운 샘플에 집중하게 되어 <strong>hard contrastive learning</strong>이 됩니다. 0.1은 SupCon 논문의 표준값입니다.</p>
+
+  <h3>Loss 수식</h3>
+
+  <div class="math-block highlight">
+    <div class="math-label">Gender-Centered SupCon Loss (최종)</div>
+    $$\mathcal{L}_{\text{SupCon}} = \frac{1}{|\mathcal{A}^+|} \sum_{a \in \mathcal{A}^+} \left[\; \underbrace{-\frac{1}{|\mathcal{P}(a)|} \sum_{p \in \mathcal{P}(a)} \text{sim}(a, p)}_{\text{(A) positive 유사도 평균}} \;+\; \underbrace{\log \sum_{\substack{k=1 \\ k \neq a}}^{N} \exp\!\big(\text{sim}(a, k)\big)}_{\text{(B) 전체 logsumexp}} \;\right]$$
+  </div>
+
+  <p>여기서 $\mathcal{A}^+ = \{a \in \mathcal{A} \mid |\mathcal{P}(a)| > 0\}$ 는 positive가 1개 이상 존재하는 anchor만 포함합니다.</p>
+
+  <h3>각 항의 의미</h3>
+
+  <div class="compare-grid">
+    <div class="compare-card male">
+      <span class="tag">(A) 분자 항</span>
+      <h4>Positive 유사도 평균</h4>
+      <p>$$-\frac{1}{|\mathcal{P}(a)|} \sum_{p \in \mathcal{P}(a)} \frac{z_a^\top z_p}{\tau}$$</p>
+      <p>anchor $a$와 positive(같은 bin, 반대 성별) 사이의 유사도 평균에 <strong>음수</strong>를 붙인 것.</p>
+      <ul class="styled-list">
+        <li>유사도가 <strong>높으면</strong>(positive와 가까우면) → 이 항이 작아짐 → <strong>loss 감소</strong></li>
+        <li>유사도가 <strong>낮으면</strong>(positive와 멀면) → 이 항이 커짐 → <strong>loss 증가</strong></li>
+      </ul>
+    </div>
+    <div class="compare-card female">
+      <span class="tag">(B) 분모 항</span>
+      <h4>전체 LogSumExp</h4>
+      <p>$$\log \sum_{k \neq a} \exp\!\left(\frac{z_a^\top z_k}{\tau}\right)$$</p>
+      <p>anchor $a$와 자기 자신을 제외한 <strong>모든 샘플</strong>의 유사도에 대한 logsumexp.</p>
+      <ul class="styled-list">
+        <li>모든 것과 가까우면 → 이 항이 커짐 → <strong>loss 증가 (collapse 방지)</strong></li>
+        <li>이 항이 있어야 "전부 같게 만들기"를 방지</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card card-accent">
+    <h4>&#127919; 최적화 방향 요약</h4>
+    <p style="margin-bottom:0">
+      <strong>(A) 최소화</strong>: positive(같은 품질 등급, 반대 성별)와 가깝게 →
+      <strong>(B) 최소화</strong>: 하지만 모든 것과 가까워지면 안 됨 →
+      결과적으로 <strong>positive만 가깝고 negative는 멀어지는</strong> 방향으로 학습
+    </p>
+  </div>
+
+  <h3>코드 대응</h3>
+
+  <div class="code-block">
+    <span class="code-label">line 132-165</span>
+<span class="comment"># Similarity 행렬 (N×N)</span>
+sim_all = projections @ projections.T / temperature   <span class="comment"># sim(i,j) = z_i^T z_j / τ</span>
+
+<span class="comment"># 분모: logsumexp (자기 자신 제외)</span>
+sim_anchors = sim_all[anchor_t]                        <span class="comment"># anchor 행만 추출: (n_a, N)</span>
+sim_anchors.<span class="func">masked_fill_</span>(self_mask, <span class="num">-inf</span>)           <span class="comment"># 자기 자신 = -∞ → exp(-∞)=0</span>
+log_denom = torch.<span class="func">logsumexp</span>(sim_anchors, dim=<span class="num">1</span>)     <span class="comment"># (B) 항: (n_a,)</span>
+
+<span class="comment"># 분자: positive 유사도 평균</span>
+sim_a2t = sim_all[anchor_t][:, target_t]               <span class="comment"># anchor×target 부분행렬: (n_a, n_t)</span>
+n_pos = pos_mask.<span class="func">float</span>().<span class="func">sum</span>(dim=<span class="num">1</span>).<span class="func">clamp</span>(min=<span class="num">1</span>)    <span class="comment"># positive 개수 (0방지)</span>
+mean_pos_sim = (sim_a2t * pos_mask).<span class="func">sum</span>(<span class="num">1</span>) / n_pos   <span class="comment"># (A) 항 (부호 제외)</span>
+
+<span class="comment"># 최종 per-anchor loss</span>
+per_anchor_loss = -(mean_pos_sim - log_denom)          <span class="comment"># -(A) + (B)</span>
+loss = per_anchor_loss[has_pos].<span class="func">mean</span>()               <span class="comment"># valid anchor만 평균</span>
+  </div>
+
+  <h3>Anchor가 Gradient를 받는다는 것의 의미</h3>
+
+  <div class="callout">
+    <div class="callout-icon">&#9888;&#65039;</div>
+    <div class="callout-body">
+      SupCon loss에서 <strong>anchor 쪽의 projection</strong>에 gradient가 흐릅니다.
+      Generator는 모든 이미지에 perturbation을 적용하지만, contrastive loss의 gradient가 anchor에서 시작되므로
+      <strong>anchor 성별의 feature 변화에 더 강하게 기여</strong>합니다.
+      <br><br>
+      <code>anchor_man</code>: gradient가 남성 feature 쪽 → "남성이 움직여서 여성을 닮아라"<br>
+      <code>anchor_women</code>: gradient가 여성 feature 쪽 → "여성이 움직여서 남성을 닮아라"
+    </div>
+  </div>
+</section>
+
+<!-- ── 6. WASSERSTEIN ── -->
+<section id="wasserstein">
+  <div class="section-num">06</div>
+  <h2>Wasserstein Loss (단방향)</h2>
+
+  <p>Feature 공간의 정렬(SupCon)과 별도로, <strong>detection score 분포</strong> 자체를 정렬하는 손실입니다.</p>
+
+  <h3>1D Wasserstein Distance 개념</h3>
+
+  <p>두 1차원 분포 사이의 거리를 측정합니다. 직관적으로 "한 분포를 다른 분포로 옮기는 데 필요한 최소 이동량"입니다.</p>
+
+  <div class="card card-blue">
+    <div class="code-block">
+남성 scores (정렬): [0.8, 0.6, 0.4]
+여성 scores (정렬): [0.6, 0.5, 0.3]
+          차이:      [0.2, 0.1, 0.1]
+Wasserstein = 평균 차이 = 0.133
+    </div>
+    <p style="margin: 0.5rem 0 0">정렬된 quantile끼리 1:1 대응시켜 차이의 평균을 구합니다.</p>
+  </div>
+
+  <h3>단방향(Unidirectional) 설계</h3>
+
+  <div class="math-block highlight">
+    <div class="math-label">anchor_women (여성 → 남성 수준으로 올림, 7th.py와 동일)</div>
+    $$\mathcal{L}_{\text{wass}} = \frac{1}{K} \sum_{k=1}^{K} \text{ReLU}\!\left(\;\underbrace{\tilde{s}_m^{(k)}}_{\text{남성 (detach)}} - \underbrace{\tilde{s}_f^{(k)}}_{\text{여성 (gradient)}}\;\right)$$
+  </div>
+
+  <div class="math-block">
+    <div class="math-label">anchor_man (남성 → 여성 수준으로 올림, 역방향)</div>
+    $$\mathcal{L}_{\text{wass}} = \frac{1}{K} \sum_{k=1}^{K} \text{ReLU}\!\left(\;\underbrace{\tilde{s}_f^{(k)}}_{\text{여성 (detach)}} - \underbrace{\tilde{s}_m^{(k)}}_{\text{남성 (gradient)}}\;\right)$$
+  </div>
+
+  <p>여기서 $\tilde{s}$는 크기가 다를 수 있는 두 분포를 $K = \max(|\mathcal{F}|, |\mathcal{M}|)$개로 선형 보간하여 리사이즈한 값입니다.</p>
+
+  <h3>ReLU의 역할 &mdash; "단방향"의 핵심</h3>
+
+  <div class="math-block">
+    $$\text{ReLU}(x) = \max(0, x) = \begin{cases} x & x > 0 \\ 0 & x \leq 0 \end{cases}$$
+  </div>
+
+  <div class="card card-teal">
+    <h4>예시 (anchor_women 기준)</h4>
+    <div class="code-block">
+<span class="comment"># Case 1: 여성이 남성보다 낮음 → 패널티 발생</span>
+남성 (detach): [0.8, 0.6, 0.4]
+여성:          [0.6, 0.5, 0.3]
+차이:          [0.2, 0.1, 0.1]  ← 모두 양수 → ReLU 통과
+Loss = <span class="num">0.133</span>  <span class="comment"># 여성을 끌어올려야 함</span>
+
+<span class="comment"># Case 2: 여성이 일부 구간에서 남성보다 높음 → 해당 구간은 무시</span>
+남성 (detach): [0.8, 0.6, 0.4]
+여성:          [<span class="string">0.9</span>, 0.5, 0.3]
+차이:          [<span class="string">-0.1</span>, 0.1, 0.1] ← 첫 번째 음수 → ReLU = 0
+Loss = <span class="num">0.067</span>  <span class="comment"># 이미 높은 부분은 패널티 없음</span>
+    </div>
+  </div>
+
+  <div class="compare-grid">
+    <div class="compare-card female">
+      <span class="tag">양방향 (이전 3rd.py)</span>
+      <p>$|s_m - s_f|$</p>
+      <p>남녀 모두 이동 → <strong>남성 성능 하락 위험</strong></p>
+    </div>
+    <div class="compare-card male">
+      <span class="tag">단방향 (현재 fix8)</span>
+      <p>$\text{ReLU}(s_{\text{target}} - s_{\text{anchor}})$</p>
+      <p>한 쪽만 끌어올림 → <strong>target 성능 유지</strong></p>
+    </div>
+  </div>
+
+  <h3><code>detach()</code>의 의미</h3>
+
+  <div class="callout">
+    <div class="callout-icon">&#128274;</div>
+    <div class="callout-body">
+      <code>male_scores.detach()</code>는 타겟 성별의 score를 <strong>고정된 목표치</strong>로 취급합니다.
+      gradient가 흐르지 않으므로 Generator가 해당 성별의 perturbation을 변경하려는 방향으로 학습하지 않습니다.
+      <br><br>
+      비유: "남성 점수는 시험 정답지처럼 고정. 여성 점수만 정답에 맞추려고 노력."
+    </div>
+  </div>
+
+  <h3>선형 보간 리사이즈</h3>
+
+  <p>남녀 샘플 수가 다를 때 (예: 남3명, 여2명) 분포 비교를 위해 같은 길이로 맞춥니다.</p>
+
+  <div class="math-block">
+    <div class="math-label">Linear Interpolation</div>
+    $$\text{resize}([0.3, 0.7],\; K\!=\!3) = [0.3,\; 0.5,\; 0.7]$$
+  </div>
+
+  <div class="code-block">
+    <span class="code-label">line 223-229</span>
+idx = torch.<span class="func">linspace</span>(<span class="num">0</span>, len-<span class="num">1</span>, k)        <span class="comment"># 등간격 소수점 인덱스</span>
+<span class="comment"># 소수점 인덱스 → 양쪽 값의 가중 평균 (선형 보간)</span>
+result = vals[<span class="func">floor</span>(idx)] * (<span class="num">1</span>-w) + vals[<span class="func">ceil</span>(idx)] * w
+  </div>
+</section>
+
+<!-- ── 7. DETECTION LOSS ── -->
+<section id="detection">
+  <div class="section-num">07</div>
+  <h2>Detection Loss</h2>
+
+  <p>Perturbation을 추가해도 <strong>검출 성능이 망가지지 않도록</strong> 보존하는 항입니다. DETR의 원본 criterion을 그대로 사용합니다.</p>
+
+  <div class="math-block">
+    <div class="math-label">DETR Detection Loss</div>
+    $$\mathcal{L}_{\text{det}} = \lambda_{\text{ce}} \cdot \mathcal{L}_{\text{CE}} + \lambda_{\text{bbox}} \cdot \mathcal{L}_{\text{L1}} + \lambda_{\text{giou}} \cdot \mathcal{L}_{\text{GIoU}}$$
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>항</th><th>수식</th><th>역할</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="td-accent">$\mathcal{L}_{\text{CE}}$</td>
+          <td>Cross-Entropy</td>
+          <td>클래스 분류 정확도 (Hungarian matching 후)</td>
+        </tr>
+        <tr>
+          <td class="td-accent">$\mathcal{L}_{\text{L1}}$</td>
+          <td>$|b_{\text{pred}} - b_{\text{gt}}|$</td>
+          <td>Bounding box 좌표 회귀</td>
+        </tr>
+        <tr>
+          <td class="td-accent">$\mathcal{L}_{\text{GIoU}}$</td>
+          <td>Generalized IoU Loss</td>
+          <td>Bounding box 형태 일치도</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="code-block">
+    <span class="code-label">line 509</span>
+loss_det, _ = detr.<span class="func">detection_loss</span>(outputs, targets)
+  </div>
+</section>
+
+<!-- ── 8. TOTAL LOSS ── -->
+<section id="total">
+  <div class="section-num">08</div>
+  <h2>Total Loss</h2>
+
+  <p>세 가지 손실을 가중합하여 Generator와 ProjectionHead를 동시에 학습합니다.</p>
+
+  <div class="math-block highlight">
+    <div class="math-label">Generator Total Loss</div>
+    $$\boxed{\mathcal{L}_{\text{total}} = \underbrace{\lambda_{\text{sc}} \cdot w(e) \cdot \mathcal{L}_{\text{SupCon}}}_{\text{Feature 공간 정렬}} + \underbrace{\lambda_w \cdot \mathcal{L}_{\text{wass}}}_{\text{Score 분포 정렬}} + \underbrace{\beta(e) \cdot \mathcal{L}_{\text{det}}}_{\text{검출 성능 보존}}}$$
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>기호</th><th>값</th><th>역할</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>$\lambda_{\text{sc}}$</td>
+          <td class="td-teal">1.0</td>
+          <td>SupCon 고정 가중치</td>
+        </tr>
+        <tr>
+          <td>$w(e)$</td>
+          <td class="td-teal">0 → 1 (3 epoch)</td>
+          <td>Contrastive warmup &mdash; 초반에 서서히 활성화</td>
+        </tr>
+        <tr>
+          <td>$\lambda_w$</td>
+          <td class="td-teal">0.2</td>
+          <td>Wasserstein 고정 가중치</td>
+        </tr>
+        <tr>
+          <td>$\beta(e)$</td>
+          <td class="td-teal">0.5 → 0.6</td>
+          <td>Detection 가중치 &mdash; 후반부에 보존 비중 증가</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="code-block">
+    <span class="code-label">line 511-515</span>
+total_g = (
+    args.lambda_supcon * contrastive_weight * loss_supcon   <span class="comment"># 공정성 (feature 정렬)</span>
+    + args.lambda_wass * loss_wasserstein                    <span class="comment"># 공정성 (score 분포)</span>
+    + current_beta * loss_det                                <span class="comment"># 검출 성능 보존</span>
+)
+  </div>
+
+  <div class="card card-gold">
+    <h4>학습 초반 vs 후반의 가중치 변화</h4>
+    <p>
+      <strong>초반 (epoch 0~2):</strong> $w(e) \approx 0$이므로 SupCon이 거의 꺼져 있고, $\beta=0.5$로 detection 보존 위주.<br>
+      <strong>중반 (epoch 3~):</strong> $w(e) = 1.0$으로 SupCon 완전 활성화. 공정성 학습 본격 시작.<br>
+      <strong>후반 (epoch 23):</strong> $\beta=0.6$으로 증가하여 detection 보존 비중 강화. 수렴 안정화.
+    </p>
+  </div>
+</section>
+
+<!-- ── 9. SCHEDULING ── -->
+<section id="scheduling">
+  <div class="section-num">09</div>
+  <h2>Scheduling 수식</h2>
+
+  <h3>Epsilon 스케줄 (Perturbation 크기)</h3>
+
+  <p>3단계로 perturbation 크기를 조절합니다.</p>
+
+  <div class="math-block">
+    $$\epsilon(e) = \begin{cases}
+    \epsilon_s + (\epsilon_p - \epsilon_s) \cdot \dfrac{e}{E_w} & e < E_w \quad \text{(Warmup)} \\[8pt]
+    \epsilon_p & E_w \leq e < E_w + E_h \quad \text{(Hold)} \\[8pt]
+    \epsilon_p + (\epsilon_m - \epsilon_p) \cdot \dfrac{e - E_w - E_h}{E_c} & e \geq E_w + E_h \quad \text{(Cooldown)}
+    \end{cases}$$
+  </div>
+
+  <div style="margin: 1.5rem 0">
+    <div class="schedule-bar">
+      <div class="sch-warmup">Warmup<br>0.05 → 0.10</div>
+      <div class="sch-hold">Hold<br>0.10</div>
+      <div class="sch-cooldown">Cooldown<br>0.10 → 0.09</div>
+    </div>
+    <div class="schedule-labels">
+      <span>epoch 0</span>
+      <span>epoch 8</span>
+      <span>epoch 14</span>
+      <span>epoch 24</span>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>파라미터</th><th>값</th><th>설명</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>$\epsilon_s$ (start)</td><td>0.05</td><td>시작 epsilon</td></tr>
+        <tr><td>$\epsilon_p$ (peak)</td><td>0.10</td><td>최대 epsilon</td></tr>
+        <tr><td>$\epsilon_m$ (min)</td><td>0.09</td><td>cooldown 후 최종값</td></tr>
+        <tr><td>$E_w$</td><td>8 epochs</td><td>Warmup 구간 길이</td></tr>
+        <tr><td>$E_h$</td><td>6 epochs</td><td>Hold 구간 길이</td></tr>
+        <tr><td>$E_c$</td><td>10 epochs</td><td>Cooldown 구간 길이</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Beta 스케줄 (Detection Loss 가중치)</h3>
+
+  <div class="math-block">
+    <div class="math-label">선형 증가</div>
+    $$\beta(e) = \beta_s + (\beta_f - \beta_s) \cdot \frac{e}{E - 1}$$
+  </div>
+
+  <p>$\beta_s = 0.5$, $\beta_f = 0.6$. 초반엔 공정성 학습에 집중하고, 후반엔 detection 보존 비중을 높입니다.</p>
+
+  <h3>Contrastive Warmup</h3>
+
+  <div class="math-block">
+    <div class="math-label">선형 Warmup</div>
+    $$w(e) = \min\!\left(\frac{e}{E_{\text{cw}}},\; 1.0\right), \quad E_{\text{cw}} = 3$$
+  </div>
+
+  <div class="card card-teal">
+    <h4>왜 Warmup이 필요한가?</h4>
+    <p style="margin-bottom:0">
+      학습 초기에는 ProjectionHead의 가중치가 <strong>무작위(random)</strong>입니다.
+      이 상태에서 SupCon loss를 바로 켜면 의미 없는 방향으로 gradient가 흘러 학습이 불안정해집니다.
+      3 epoch 동안 서서히 활성화하여 ProjectionHead가 어느 정도 유의미한 임베딩을 만든 뒤 본격적으로 contrastive 학습을 시작합니다.
+    </p>
+  </div>
+
+  <h3>Learning Rate 스케줄</h3>
+
+  <div class="math-block">
+    $$\text{lr\_scale}(e) = \begin{cases}
+    \dfrac{e+1}{E_w} & e < E_w \quad \text{(Warmup)} \\[8pt]
+    0.1 + 0.45 \cdot \left(1 + \cos\!\left(\pi \cdot \dfrac{e - E_w}{E - E_w}\right)\right) & e \geq E_w \quad \text{(Cosine)}
+    \end{cases}$$
+  </div>
+
+  <p>$E_w = 3$. Warmup 이후 cosine annealing으로 학습률이 1.0에서 약 0.1까지 감소합니다.</p>
+</section>
+
+<!-- ── 10. COMPARISON ── -->
+<section id="comparison">
+  <div class="section-num">10</div>
+  <h2>anchor_man vs anchor_women 비교</h2>
+
+  <p>두 파일의 유일한 차이는 <strong>anchor 성별</strong>과 그에 따른 <strong>Wasserstein 방향</strong>입니다. 나머지 코드는 100% 동일합니다.</p>
+
+  <div class="compare-grid">
+    <div class="compare-card male">
+      <span class="tag">anchor_man</span>
+      <h4>남성이 anchor</h4>
+      <p><strong>SupCon 방향:</strong><br>
+      남성 feature가 같은 품질의 여성 feature를 닮아가도록 학습</p>
+      <p><strong>Wasserstein 방향:</strong><br>
+      $\text{ReLU}(s_f^{\text{detach}} - s_m)$<br>
+      남성 score를 여성 수준으로 올림</p>
+      <p><strong>Gradient 흐름:</strong><br>
+      남성 이미지의 perturbation에 더 강하게 기여</p>
+    </div>
+    <div class="compare-card female">
+      <span class="tag">anchor_women</span>
+      <h4>여성이 anchor</h4>
+      <p><strong>SupCon 방향:</strong><br>
+      여성 feature가 같은 품질의 남성 feature를 닮아가도록 학습</p>
+      <p><strong>Wasserstein 방향:</strong><br>
+      $\text{ReLU}(s_m^{\text{detach}} - s_f)$<br>
+      여성 score를 남성 수준으로 올림 (7th.py와 동일)</p>
+      <p><strong>Gradient 흐름:</strong><br>
+      여성 이미지의 perturbation에 더 강하게 기여</p>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>구분</th><th>anchor_man</th><th>anchor_women</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>ANCHOR_GENDER</td><td class="td-accent">"male"</td><td class="td-accent">"female"</td></tr>
+        <tr><td>TARGET_GENDER</td><td>"female"</td><td>"male"</td></tr>
+        <tr><td>SupCon 의미</td><td>남성→여성 닮아라</td><td>여성→남성 닮아라</td></tr>
+        <tr><td>Wasserstein 인자 순서</td><td>(male_scores, female_scores)</td><td>(female_scores, male_scores)</td></tr>
+        <tr><td>Wasserstein 의미</td><td>남성 score ↑</td><td>여성 score ↑</td></tr>
+        <tr><td>7th.py와의 관계</td><td class="td-accent">역방향</td><td class="td-teal">동일 방향</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card card-gold">
+    <h4>실험 설계 의도</h4>
+    <p style="margin-bottom:0">
+      이 두 파일은 <strong>ablation study</strong>입니다.
+      "공정성 정렬 방향 &mdash; 어느 성별의 feature를 변화시킬 것인가"가 최종 결과에 미치는 영향을 비교합니다.
+      <br><br>
+      <strong>예상 결과:</strong>
+      <code>anchor_women</code>은 7th.py와 같은 방향이므로 유사한 결과가 예상되고,
+      <code>anchor_man</code>은 역방향이라 남성 성능이 약간 하락하면서 gap이 줄어드는 패턴이 예상됩니다.
+    </p>
+  </div>
+</section>
+
+<!-- ── 11. QNA ── -->
+<section id="qna">
+  <div class="section-num">11</div>
+  <h2>예상 Q&A</h2>
+
+  <div class="card card-accent" style="margin-top: 1.5rem">
+    <h4>Q1. fix7이랑 뭐가 다른가?</h4>
+    <p>fix7은 성별 무관하게 모든 샘플이 anchor입니다 (Quality SupCon). fix8은 <strong>한 성별만 anchor로 지정</strong>하여 contrastive gradient의 방향을 제어하는 실험입니다.</p>
+  </div>
+
+  <div class="card card-accent">
+    <h4>Q2. Anchor 방향이 결과에 어떤 영향을 줄 것으로 예상하는가?</h4>
+    <p><code>anchor_women</code>(여성→남성)은 7th.py와 동일한 "여성 끌어올리기" 방향이라 유사한 결과가 예상됩니다.
+    <code>anchor_man</code>(남성→여성)은 역방향이라 남성 성능이 약간 하락하면서 gap이 줄어드는 패턴이 예상됩니다.</p>
+  </div>
+
+  <div class="card card-accent">
+    <h4>Q3. Bin을 3개로 나눈 근거는?</h4>
+    <p>batch_size=5에서 너무 많은 bin은 bin당 샘플 수가 너무 적어집니다. 코드에 <code>n_bins = min(3, N//2)</code> 안전장치가 있어 배치 크기에 따라 자동 조절됩니다. Bin 개수에 대한 ablation은 추후 진행 가능합니다.</p>
+  </div>
+
+  <div class="card card-accent">
+    <h4>Q4. GAN(7th) 대비 SupCon(fix8)의 장단점은?</h4>
+    <p><strong>장점:</strong> Discriminator가 없어 학습 안정성 향상, D/G 균형 문제 없음, 하이퍼파라미터 감소.<br>
+    <strong>단점:</strong> GAN은 feature 수준에서 성별 정보를 <em>직접 제거</em>하지만, SupCon은 "같은 품질이면 비슷하게"라는 간접적 정렬이므로 성별 정보 제거에 대한 이론적 보장이 약합니다.</p>
+  </div>
+
+  <div class="card card-accent">
+    <h4>Q5. Temperature 0.1의 근거는?</h4>
+    <p>SupCon 원본 논문(Khosla et al., 2020)의 표준 설정값입니다. $\tau$가 작을수록 hard negative에 집중하여 더 discriminative한 표현을 학습하며, 0.1은 실험적으로 검증된 값입니다.</p>
+  </div>
+
+  <div class="card card-accent">
+    <h4>Q6. 이 두 실험의 결과로 논문에 어떻게 기여할 수 있는가?</h4>
+    <p>Ablation study로 "공정성 정렬 방향(어느 성별을 변화시킬지)의 영향"을 분석할 수 있습니다.
+    결과에 따라 "단방향 정렬 vs 역방향 정렬"의 비교표를 제시하고, anchor 선택이 공정성-성능 tradeoff에 미치는 영향을 논의할 수 있습니다.</p>
+  </div>
+</section>
+
+</div>
+
+<footer>
+  <strong>FAAP fix8 Analysis</strong> &mdash; Trustworthy AI Lab, 인천대학교 정보통신공학과
+  <br>Generated 2026-03-24
+</footer>
+
+<button class="back-top" id="backTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="맨 위로">&#8593;</button>
+
+<script>
+// Scroll-triggered section reveal
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+    }
+  });
+}, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+
+document.querySelectorAll('section').forEach(s => observer.observe(s));
+
+// Pipeline diagram staggered reveal
+const diagramObs = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) entry.target.classList.add('animated');
+  });
+}, { threshold: 0.3 });
+document.querySelectorAll('.diagram').forEach(d => diagramObs.observe(d));
+
+// Sticky nav shadow
+const nav = document.getElementById('nav');
+window.addEventListener('scroll', () => {
+  nav.classList.toggle('scrolled', window.scrollY > 10);
+});
+
+// Active nav link
+const sections = document.querySelectorAll('section[id]');
+const navLinks = document.querySelectorAll('.nav-link');
+
+// Back to top button
+const backTop = document.getElementById('backTop');
+const navProgress = document.getElementById('navProgress');
+
+window.addEventListener('scroll', () => {
+  // Nav active state
+  let current = '';
+  sections.forEach(s => {
+    if (window.scrollY >= s.offsetTop - 120) current = s.id;
+  });
+  navLinks.forEach(link => {
+    link.classList.toggle('active', link.getAttribute('href') === '#' + current);
+  });
+
+  // Back to top visibility
+  backTop.classList.toggle('show', window.scrollY > 600);
+
+  // Reading progress bar
+  const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+  const progress = docHeight > 0 ? (window.scrollY / docHeight) * 100 : 0;
+  navProgress.style.width = Math.min(progress, 100) + '%';
+});
+</script>
+
+</body>
+</html>
