@@ -1,0 +1,56 @@
+{
+  "women_train": {
+    "images_dir": "/workspace/faap_dataset/women_split/train",
+    "annotation": "/workspace/faap_dataset/women_split/gender_women_train.json",
+    "annotation_exists": true,
+    "num_images": 6532,
+    "extensions": {
+      ".jpg": 6532
+    }
+  },
+  "women_val": {
+    "images_dir": "/workspace/faap_dataset/women_split/val",
+    "annotation": "/workspace/faap_dataset/women_split/gender_women_val.json",
+    "annotation_exists": true,
+    "num_images": 816,
+    "extensions": {
+      ".jpg": 816
+    }
+  },
+  "women_test": {
+    "images_dir": "/workspace/faap_dataset/women_split/test",
+    "annotation": "/workspace/faap_dataset/women_split/gender_women_test.json",
+    "annotation_exists": true,
+    "num_images": 818,
+    "extensions": {
+      ".jpg": 818
+    }
+  },
+  "men_train": {
+    "images_dir": "/workspace/faap_dataset/men_split/train",
+    "annotation": "/workspace/faap_dataset/men_split/gender_men_train.json",
+    "annotation_exists": true,
+    "num_images": 18256,
+    "extensions": {
+      ".jpg": 18256
+    }
+  },
+  "men_val": {
+    "images_dir": "/workspace/faap_dataset/men_split/val",
+    "annotation": "/workspace/faap_dataset/men_split/gender_men_val.json",
+    "annotation_exists": true,
+    "num_images": 2282,
+    "extensions": {
+      ".jpg": 2282
+    }
+  },
+  "men_test": {
+    "images_dir": "/workspace/faap_dataset/men_split/test",
+    "annotation": "/workspace/faap_dataset/men_split/gender_men_test.json",
+    "annotation_exists": true,
+    "num_images": 2283,
+    "extensions": {
+      ".jpg": 2283
+    }
+  }
+}
