@@ -88,10 +88,11 @@ def extract_features(
 
     z_clean_f, z_clean_m = [], []
     z_pert_f, z_pert_m = [], []
-    count = 0
+    count_f, count_m = 0, 0
+    per_gender = max_samples // 2  # 성별별 균등 수집
 
     for samples, targets, genders in dataloader:
-        if count >= max_samples:
+        if count_f >= per_gender and count_m >= per_gender:
             break
 
         samples = samples.to(device)
@@ -100,28 +101,44 @@ def extract_features(
         female_idx = [i for i, g in enumerate(genders) if g == "female"]
         male_idx = [i for i, g in enumerate(genders) if g == "male"]
 
+        # 이미 충분히 수집한 성별은 스킵
+        if count_f >= per_gender:
+            female_idx = []
+        if count_m >= per_gender:
+            male_idx = []
+
         if len(female_idx) == 0 and len(male_idx) == 0:
             continue
 
+        # 실제 사용할 인덱스만 추출
+        use_idx = sorted(female_idx + male_idx)
+        sub_samples = NestedTensor(samples.tensors[use_idx], samples.mask[use_idx])
+
         # Clean features
-        _, feat_clean = detr.forward_with_features(samples)
+        _, feat_clean = detr.forward_with_features(sub_samples)
         z_clean = proj_head(feat_clean)
 
         # Perturbed features
-        tensors = samples.tensors
+        tensors = sub_samples.tensors
         delta = generator(tensors)
-        perturbed = NestedTensor(clamp_normalized(tensors + delta), samples.mask)
+        perturbed = NestedTensor(clamp_normalized(tensors + delta), sub_samples.mask)
         _, feat_pert = detr.forward_with_features(perturbed)
         z_pert = proj_head(feat_pert)
 
-        if female_idx:
-            z_clean_f.append(z_clean[female_idx].cpu())
-            z_pert_f.append(z_pert[female_idx].cpu())
-        if male_idx:
-            z_clean_m.append(z_clean[male_idx].cpu())
-            z_pert_m.append(z_pert[male_idx].cpu())
+        # use_idx 기준으로 재매핑
+        local_f = [i for i, orig in enumerate(use_idx) if orig in female_idx]
+        local_m = [i for i, orig in enumerate(use_idx) if orig in male_idx]
 
-        count += len(genders)
+        if local_f:
+            z_clean_f.append(z_clean[local_f].cpu())
+            z_pert_f.append(z_pert[local_f].cpu())
+            count_f += len(local_f)
+        if local_m:
+            z_clean_m.append(z_clean[local_m].cpu())
+            z_pert_m.append(z_pert[local_m].cpu())
+            count_m += len(local_m)
+
+    print(f"  Collected: {count_f} female, {count_m} male samples")
 
     return {
         "z_clean_f": torch.cat(z_clean_f) if z_clean_f else torch.empty(0),
