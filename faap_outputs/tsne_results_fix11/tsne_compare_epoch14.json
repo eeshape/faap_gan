@@ -1,0 +1,32 @@
+{
+  "checkpoint1": {
+    "path": "faap_outputs/faap_outputs_fix11_contrastive_gpu_20260410/checkpoints/epoch_0014.pth",
+    "epoch": 14,
+    "disp_female": 0.14053015410900116,
+    "disp_male": 0,
+    "disp_ratio": 14053015.410900116,
+    "center_dist_before": 0.9032701253890991,
+    "center_dist_after": 0.908013105392456,
+    "center_dist_delta": 0.004742980003356934,
+    "cos_sim_before": 0.0,
+    "cos_sim_after": 0.0,
+    "cos_sim_delta": 0.0,
+    "n_female": 500,
+    "n_male": 0
+  },
+  "checkpoint2": {
+    "path": "faap_outputs/faap_outputs_fix11_contrastive_gpu_ablation_no_l2_20260415/checkpoints/epoch_0014.pth",
+    "epoch": 14,
+    "disp_female": 0.18743902444839478,
+    "disp_male": 0,
+    "disp_ratio": 18743902.444839478,
+    "center_dist_before": 0.8666451573371887,
+    "center_dist_after": 0.8563171029090881,
+    "center_dist_delta": -0.010328054428100586,
+    "cos_sim_before": 0.0,
+    "cos_sim_after": 0.0,
+    "cos_sim_delta": 0.0,
+    "n_female": 500,
+    "n_male": 0
+  }
+}
