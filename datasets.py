@@ -84,7 +84,7 @@ class GenderCocoDataset(CocoDetection):
             raise FileNotFoundError(f"Annotation file not found: {ann_file}")
 
         transforms = make_coco_transforms("train" if split == "train" else "val")
-        super().__init__(img_folder, ann_file, transforms=transforms, return_masks=return_masks, light_filter=None)
+        super().__init__(img_folder, ann_file, transforms=transforms, return_masks=return_masks)
         self.gender = gender
         self.split = split
         self.include_gender = include_gender
