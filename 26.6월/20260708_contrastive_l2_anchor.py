@@ -1,26 +1,43 @@
 """
-FAAP Training - Fix11 Contrastive ABLATION: No L2 Anchoring [2026-04-15]
+FAAP Training - Anchor 3-Way 비교 (B) L2 ANCHOR: male feature 점별 고정 [2026-07-08]
 
 =============================================================================
-Ablation Study: L2 Anchoring Loss 제거
+3-Way 통제 비교 (anchor 항 외 코드·하이퍼파라미터 완전 동일):
+  (A) 20260708_contrastive_baseline.py        : anchor 없음 (통제군)
+  (B) 20260708_contrastive_l2_anchor.py       : + gamma * L_L2_anchor (점별 고정)
+  (C) 20260708_contrastive_centroid_anchor.py : + gamma * L_centroid_anchor (평균 방향 정렬)
 =============================================================================
 
-원본: train_faap_fix11_contrastive_gpu_20260410.py
-변경: L_L2_anchor 제거 → L2 anchoring 없이 contrastive만으로 학습
+배경 (20260617 OFAT 스윕 진단):
+- no-anchor contrastive만으로는 AP gap 이 노이즈 수준(~2%)에서 정체
+- best epoch 이 0~1 → 학습이 공정성을 지속적으로 개선하지 못함
+- 가설: contrastive 가 female→male 로 당길 때 male feature(또는 centroid)가
+  함께 끌려가는 드리프트로 개선이 상쇄됨 → anchor 복원으로 검증
+
+공통 기본값 (3파일 동일 — 스윕 결과 반영):
+- lambda_con=2.5  : 20260617 OFAT 스윕 최적 (AP gap·유틸리티 모두 1위)
+- temperature=0.1 : 스윕 중심점 (tau 스윕은 미완이므로 검증된 값 유지)
+- epochs=8        : 스윕 프로토콜과 동일 (lambda=2.5 가 검증된 조건)
+- batch_size=5    : 스윕과 동일 (centroid 안정화에는 10 권장 — 올릴 땐 3파일 모두 동일하게)
+
+원본 계보:
+- 코어: 20260617_contrastive_baseline_hyperparameter.py (fix11 no-L2 ablation + 스윕 로깅)
+- L2 anchor: 구실험파일/train_faap_fix11_contrastive_gpu_20260410.py 의 수식 그대로
+- Centroid anchor: 20260627_loss_centroid_fix1 (pyc 디스어셈블로 설계 복원)
+=============================================================================
 
 Total Loss = lambda_con * L_contrastive
            + beta     * L_det_female
            + beta_m   * L_det_male
+           + gamma    * L_L2_anchor
 
-(1) L_contrastive: Score-Weighted Contrastive Loss
-    - .detach() 제거 → gradient 양쪽 흐름
-    - L2 anchoring 없이 남성 feature도 자유롭게 이동
-
-(2) L_det_female: 여성 검출 보존 (DETR criterion)
-(3) L_det_male:   남성 검출 보존 (DETR criterion)
-
-목적: L2 anchoring이 남성 feature 고정에 얼마나 기여하는지 확인
-=============================================================================
+(1) L_contrastive: Score-Weighted Contrastive Loss (.detach() 없음, 양쪽 gradient)
+(2) L_det_female : 여성 검출 보존 (DETR criterion)
+(3) L_det_male   : 남성 검출 보존 (DETR criterion)
+(4) L_L2_anchor  : F.mse_loss(z_pert_male, z_clean_male)
+    - teacher(z_clean_male)는 no_grad 고정 target — clean forward 로 계산
+    - 개별 male feature 를 점별로 clean 위치에 고정 (가장 강한 제약)
+    - gamma=0.5 기본 (원본 fix11 권장 0.5~1.0)
 """
 
 import argparse
@@ -188,7 +205,7 @@ def _default_output_dir(script_path: Path) -> str:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        "FAAP fix11 ABLATION: Contrastive only (no L2 Anchoring, no .detach())"
+        "FAAP 3-way anchor comparison (B) L2 anchor (point-wise male fix)"
     )
 
     # Paths
@@ -199,7 +216,9 @@ def parse_args() -> argparse.Namespace:
 
     # Training
     parser.add_argument("--device", type=str, default="cuda")
-    parser.add_argument("--epochs", type=int, default=15)
+    parser.add_argument("--epochs", type=int, default=8)   # 20260617 OFAT 스윕 프로토콜과 동일 (lambda=2.5 검증 조건)
+    parser.add_argument("--stop_epoch", type=int, default=-1,
+                        help="이 epoch까지만 학습 후 조기 종료 (-1=비활성). LR/epsilon/beta 스케줄은 --epochs 기준 유지")
     parser.add_argument("--batch_size", type=int, default=5)
     parser.add_argument("--num_workers", type=int, default=6)
     parser.add_argument("--lr_g", type=float, default=5e-5)
@@ -213,15 +232,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--epsilon_cooldown_epochs", type=int, default=6)
     parser.add_argument("--epsilon_min", type=float, default=0.09)
 
-    # Loss weights (gamma 제거됨)
-    parser.add_argument("--lambda_con", type=float, default=1.0,
-                        help="Contrastive loss weight")
+    # Loss weights (+ gamma: L2 anchor)
+    parser.add_argument("--lambda_con", type=float, default=2.5,   # 20260617 OFAT 스윕 최적값
+                        help="Contrastive loss weight (2.5 = OFAT 스윕에서 AP gap·유틸리티 모두 1위)")
     parser.add_argument("--beta", type=float, default=0.5,
                         help="Female detection loss weight (start)")
     parser.add_argument("--beta_final", type=float, default=0.6,
                         help="Female detection loss weight (end)")
     parser.add_argument("--beta_m", type=float, default=0.5,
                         help="Male detection loss weight (fixed)")
+    parser.add_argument("--gamma", type=float, default=0.5,
+                        help="L2 anchor loss weight (원본 fix11 권장 0.5~1.0)")
 
     # Contrastive settings
     parser.add_argument("--temperature", type=float, default=0.1)
@@ -243,13 +264,17 @@ def parse_args() -> argparse.Namespace:
     # Weights & Biases
     parser.add_argument("--wandb", action="store_true",
                         help="Enable Weights & Biases logging")
-    parser.add_argument("--wandb_project", type=str, default="faap-fix11-ablation")
+    parser.add_argument("--wandb_project", type=str, default="faap-anchor-3way-20260708")
     parser.add_argument("--wandb_entity", type=str,
                         default="eeshape-incheon-national-university")
     parser.add_argument("--wandb_run_name", type=str, default="",
                         help="Run name (default: output_dir name)")
     parser.add_argument("--wandb_mode", type=str, default="online",
                         choices=["online", "offline", "disabled"])
+    parser.add_argument("--wandb_group", type=str, default="",
+                        help="W&B group (e.g. lambda_sweep / tau_sweep) for sweep filtering")
+    parser.add_argument("--wandb_tags", type=str, default="",
+                        help="Comma-separated W&B tags")
 
     return parser.parse_args()
 
@@ -365,7 +390,12 @@ def main():
             mode=args.wandb_mode,
             config=vars(args),
             dir=str(output_dir),
+            group=args.wandb_group or None,
+            tags=[t for t in (args.wandb_tags or "").split(",") if t],
         )
+        # epoch 단위 지표는 epoch 을 x축으로 고정 → 여러 run 곡선을 깔끔하게 겹쳐 비교.
+        wandb.define_metric("epoch")
+        wandb.define_metric("epoch/*", step_metric="epoch")
 
     if utils.is_main_process():
         dataset_info = inspect_faap_dataset(Path(args.dataset_root))
@@ -373,18 +403,17 @@ def main():
             json.dump(dataset_info, f, indent=2)
 
         print("=" * 70)
-        print("FAAP fix11 ABLATION: Contrastive only (NO L2 Anchoring)")
+        print("FAAP 3-Way Anchor 비교 (B) L2 ANCHOR: male 점별 고정")
         print("=" * 70)
         print("[Loss 구조]")
         print(f"  (1) lambda_con={args.lambda_con} * L_contrastive  (Score-Weighted, no .detach())")
         print(f"  (2) beta={args.beta}->{args.beta_final} * L_det_female")
         print(f"  (3) beta_m={args.beta_m} * L_det_male")
-        print(f"  (X) L_L2_anchor = REMOVED (ablation)")
+        print(f"  (4) gamma={args.gamma} * L_L2_anchor  (male feature 점별 MSE 고정)")
         print("-" * 70)
-        print("[Ablation 목적]")
-        print("  L2 anchoring 없이 contrastive만으로 학습 시")
-        print("  남성 feature가 얼마나 이동하는지 확인")
-        print("  -> L2 anchoring의 필요성 검증")
+        print("[실험 목적]")
+        print("  contrastive가 female→male로 당길 때 male feature를 점별 고정")
+        print("  baseline(no anchor) 대비 AP gap 개선 여부 검증")
         print("-" * 70)
         print(f"  Temperature: {args.temperature}")
         print(f"  Epsilon: {args.epsilon} -> {args.epsilon_final} -> {args.epsilon_min}")
@@ -455,6 +484,7 @@ def main():
     # Training Loop
     # =========================================================================
 
+    last_epoch_log = None  # 학습 종료 후 wandb summary 스칼라로 사용
     for epoch in range(start_epoch, args.epochs):
         metrics_logger = utils.MetricLogger(delimiter="  ")
         generator.train()
@@ -496,6 +526,11 @@ def main():
 
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
 
+                # ----- Clean features (teacher: 고정 target, no_grad) -----
+                with torch.no_grad():
+                    _, feat_clean = detr.forward_with_features(samples)
+                    z_clean = proj_head(feat_clean)  # (B, D), L2-normalized
+
                 # ----- Perturbed features -----
                 perturbed = _apply_generator(generator, samples)
                 outputs, feat_pert = detr.forward_with_features(perturbed)
@@ -536,12 +571,22 @@ def main():
                 loss_det_m, _ = detr.detection_loss(outputs_m, targets_m)
 
                 # =============================================================
-                # Total Loss (L2 anchoring 제거)
+                # (4) L2 Anchoring Loss (male feature 점별 고정)
+                # =============================================================
+                # z_pert_male: gradient O (generator 통해 학습)
+                # z_clean_male: gradient X (no_grad teacher)
+                z_pert_male = z_pert[male_idx]
+                z_clean_male = z_clean[male_idx]
+                loss_anchor = F.mse_loss(z_pert_male, z_clean_male)
+
+                # =============================================================
+                # Total Loss
                 # =============================================================
                 total_g = (
                     args.lambda_con * loss_contrastive
                     + current_beta * loss_det_f
                     + args.beta_m * loss_det_m
+                    + args.gamma * loss_anchor
                 )
 
             # =================================================================
@@ -584,6 +629,7 @@ def main():
                 loss_con=loss_contrastive.item(),
                 loss_det_f=loss_det_f.item(),
                 loss_det_m=loss_det_m.item(),
+                loss_anchor=loss_anchor.item(),
                 total_g=total_g.item(),
                 eps=current_eps,
                 beta=current_beta,
@@ -604,6 +650,7 @@ def main():
                     "train/loss_con": loss_contrastive.item(),
                     "train/loss_det_f": loss_det_f.item(),
                     "train/loss_det_m": loss_det_m.item(),
+                    "train/loss_anchor": loss_anchor.item(),
                     "train/total_g": total_g.item(),
                     "train/matched_score_f": mscore_f.item(),
                     "train/matched_score_m": mscore_m.item(),
@@ -632,7 +679,7 @@ def main():
                 "loss_con": metrics_logger.meters["loss_con"].global_avg,
                 "loss_det_f": metrics_logger.meters["loss_det_f"].global_avg,
                 "loss_det_m": metrics_logger.meters["loss_det_m"].global_avg,
-                "loss_l2": 0.0,  # ablation: L2 제거됨
+                "loss_anchor": metrics_logger.meters["loss_anchor"].global_avg,
                 "total_g": metrics_logger.meters["total_g"].global_avg,
                 "epsilon": current_eps,
                 "beta": current_beta,
@@ -658,8 +705,10 @@ def main():
                 epoch_log["epoch"] = epoch
                 wandb.log(epoch_log)
 
-            print(f"\n[Epoch {epoch}] Summary (ABLATION: no L2):")
-            print(f"  Contrastive: {log_entry['loss_con']:.4f}  |  L2 Anchor: REMOVED")
+            last_epoch_log = log_entry
+
+            print(f"\n[Epoch {epoch}] Summary (3-way L2 ANCHOR):")
+            print(f"  Contrastive: {log_entry['loss_con']:.4f}  |  L2 Anchor: {log_entry['loss_anchor']:.4f}")
             print(f"  Det Female:  {log_entry['loss_det_f']:.4f}  |  Det Male:  {log_entry['loss_det_m']:.4f}")
             print(f"  Total: {log_entry['total_g']:.4f}")
             print(f"  Matched Score (F/M): {mf:.4f} / {mm:.4f}  |  Gap(M-F): {log_entry['matched_score_gap']:.4f}")
@@ -684,25 +733,40 @@ def main():
         if args.distributed:
             dist.barrier()
 
+        # 조기 종료: 스케줄은 --epochs 기준 유지하되 stop_epoch에서 학습만 중단
+        if args.stop_epoch >= 0 and epoch >= args.stop_epoch:
+            if utils.is_main_process():
+                print(f"\n[조기 종료] stop_epoch={args.stop_epoch} 도달 → 학습 중단 "
+                      f"(LR/epsilon/beta 스케줄은 epochs={args.epochs} 기준)")
+            break
+
     # =========================================================================
     # Training Complete
     # =========================================================================
     if utils.is_main_process():
         print("\n" + "=" * 70)
-        print("fix11 ABLATION: Contrastive only (NO L2 Anchoring) 학습 완료")
+        print("3-Way (B) L2 ANCHOR 학습 완료")
         print("=" * 70)
         print(f"Output: {output_dir}")
         print("\n[Loss 구조]")
         print(f"  lambda_con={args.lambda_con} * L_contrastive  (Score-Weighted, no .detach())")
         print(f"  beta={args.beta}->{args.beta_final} * L_det_female")
         print(f"  beta_m={args.beta_m} * L_det_male")
-        print(f"  L_L2_anchor = REMOVED (ablation)")
-        print("\n비교 포인트:")
-        print("  1. delta_linf_m 변화: L2 없이 남성 perturbation이 커지는지 확인")
-        print("  2. AP Gap 변화: L2 없이 공정성이 악화되는지 확인")
-        print("  3. matched_score_gap: 남성 score가 하락하는지 확인")
+        print(f"  gamma={args.gamma} * L_L2_anchor  (male 점별 MSE 고정)")
+        print("\n비교 포인트 (vs baseline/centroid):")
+        print("  1. AP Gap: baseline 대비 개선되는가 / centroid 대비 어느 쪽이 나은가")
+        print("  2. matched_score_m: male 성능이 점별 고정으로 더 잘 보존되는가")
+        print("  3. loss_con: 점별 고정이 contrastive 학습을 방해하지 않는가")
 
     if use_wandb:
+        # run당 단일 요약 스칼라(마지막 epoch proxy 지표) → 스윕 Scatter 보조 축.
+        # 최종 공정성 지표(AP gap)는 eval_faap.py 가 같은 project 에 별도 기록.
+        if last_epoch_log is not None:
+            wandb.run.summary["final/matched_score_gap"] = last_epoch_log["matched_score_gap"]
+            wandb.run.summary["final/delta_linf_m"] = last_epoch_log["delta_linf_m"]
+            wandb.run.summary["final/delta_linf_f"] = last_epoch_log["delta_linf_f"]
+            wandb.run.summary["final/loss_con"] = last_epoch_log["loss_con"]
+            wandb.run.summary["final/loss_anchor"] = last_epoch_log["loss_anchor"]
         wandb.finish()
 
 

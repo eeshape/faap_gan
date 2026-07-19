@@ -27,11 +27,6 @@ from util.misc import NestedTensor
 from datasets import get_coco_api_from_dataset
 from datasets.coco_eval import CocoEvaluator
 
-try:
-    import wandb
-except ImportError:
-    wandb = None
-
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser("Evaluate baseline vs. FAAP perturbation on DETR", add_help=True)
@@ -45,17 +40,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--num_workers", type=int, default=8)
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("--results_path", type=str, default="", help="output path for metrics (auto-generated if empty)")
-
-    # Weights & Biases
-    parser.add_argument("--wandb", action="store_true",
-                        help="Enable Weights & Biases logging of eval metrics")
-    parser.add_argument("--wandb_project", type=str, default="faap-fix11-ablation")
-    parser.add_argument("--wandb_entity", type=str,
-                        default="eeshape-incheon-national-university")
-    parser.add_argument("--wandb_group", type=str, default="",
-                        help="W&B group (e.g. lambda_sweep / tau_sweep) for sweep filtering")
-    parser.add_argument("--wandb_tags", type=str, default="",
-                        help="Comma-separated W&B tags")
     return parser.parse_args()
 
 
@@ -310,15 +294,6 @@ def main():
             generator.load_state_dict(state["generator"])
         else:
             generator.load_state_dict(state)
-        # 학습 시 저장된 하이퍼파라미터를 추출 (wandb 스윕 비교용: lambda_con / temperature 등)
-        if isinstance(state, dict) and isinstance(state.get("args"), dict):
-            _sweep_keys = [
-                "lambda_con", "temperature", "beta", "beta_final", "beta_m",
-                "proj_dim", "proj_dropout", "score_top_k", "lr_g", "seed",
-            ]
-            train_hparams = {
-                k: state["args"][k] for k in _sweep_keys if k in state["args"]
-            }
 
     gender_ds = build_gender_datasets(Path(args.dataset_root), args.split, include_gender=False)
     male_loader = build_eval_loader(gender_ds["male"], args.batch_size, args.num_workers)
@@ -404,66 +379,6 @@ def main():
     with output_path.open("w") as f:
         json.dump(results, f, indent=2)
     print(f"Saved metrics to {output_path}")
-
-    if args.wandb:
-        if wandb is None:
-            raise RuntimeError(
-                "wandb 가 설치되어 있지 않습니다. `pip install wandb` 후 다시 실행하세요."
-            )
-        # 실험 이름 = 출력 폴더명 / epoch = 체크포인트(또는 결과파일)에서 추출
-        exp_name = output_path.parent.name
-        m = re.search(r"epoch_(\d+)", str(args.generator_checkpoint or output_path.name))
-        epoch_num = int(m.group(1)) if m else 0
-        # 같은 실험의 여러 epoch 평가를 하나의 run에 누적 (cross-process resume)
-        run_id = re.sub(r"[^A-Za-z0-9_-]", "-", exp_name)[:55] + "-eval"
-
-        wandb.init(
-            entity=args.wandb_entity,
-            project=args.wandb_project,
-            name=f"{exp_name}-eval",
-            id=run_id,
-            resume="allow",
-            # train_hparams(lambda_con/temperature 등)를 config에 포함해야
-            # wandb Scatter/Parallel-Coordinates에서 "lambda_con vs AP_gap" 비교가 가능하다.
-            config={"experiment": exp_name, **train_hparams, **results["hyperparams"]},
-            group=args.wandb_group or None,
-            tags=[t for t in (args.wandb_tags or "").split(",") if t],
-        )
-        b, p = results["baseline"], results["perturbed"]
-        g, d = results["gaps"], results["deltas"]
-        eval_metrics = {
-            "eval/baseline_male_AP": b["male"]["AP"],
-            "eval/baseline_female_AP": b["female"]["AP"],
-            "eval/baseline_male_AR": b["male"]["AR"],
-            "eval/baseline_female_AR": b["female"]["AR"],
-            "eval/perturbed_male_AP": p["male"]["AP"],
-            "eval/perturbed_female_AP": p["female"]["AP"],
-            "eval/perturbed_male_AR": p["male"]["AR"],
-            "eval/perturbed_female_AR": p["female"]["AR"],
-            "eval/AP_gap_baseline": g["AP"]["baseline"],
-            "eval/AP_gap_perturbed": g["AP"]["perturbed"],
-            "eval/AR_gap_baseline": g["AR"]["baseline"],
-            "eval/AR_gap_perturbed": g["AR"]["perturbed"],
-            "eval/delta_male_AP": d["male"]["AP"],
-            "eval/delta_female_AP": d["female"]["AP"],
-            "epoch": epoch_num,
-        }
-        wandb.log(eval_metrics, step=epoch_num)
-        # run당 단일 요약 스칼라(Scatter/Parallel-Coordinates y축)는 "best epoch" 기준.
-        # 같은 eval run 에 epoch 별로 resume 누적되므로, summary 는 이전 평가까지의
-        # 최소 |AP_gap_perturbed| 를 유지하다가 더 공정한 epoch 이 나오면 갱신한다.
-        cur_abs_gap = abs(g["AP"]["perturbed"])
-        prev_best = wandb.run.summary.get("final/best_abs_AP_gap", None)
-        if prev_best is None or cur_abs_gap < prev_best:
-            wandb.run.summary["final/best_abs_AP_gap"] = cur_abs_gap
-            wandb.run.summary["final/AP_gap_perturbed"] = g["AP"]["perturbed"]
-            wandb.run.summary["final/AP_gap_baseline"] = g["AP"]["baseline"]
-            wandb.run.summary["final/AP_gap_improvement"] = abs(g["AP"]["baseline"]) - cur_abs_gap
-            wandb.run.summary["final/fairness_score"] = -cur_abs_gap
-            wandb.run.summary["final/best_epoch"] = epoch_num
-            print(f"[wandb] best epoch 갱신: epoch {epoch_num}, |AP_gap|={cur_abs_gap:.4f}")
-        wandb.finish()
-        print(f"[wandb] logged eval metrics (epoch {epoch_num}) to run '{run_id}'")
 
 
 if __name__ == "__main__":

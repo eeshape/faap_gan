@@ -9,3 +9,8 @@ faap_outputs_w/generated_images/
 monitor*.sh
 monitor*.log
 .omc/
+
+# Large binaries / experiment outputs (do not commit to git)
+faap_outputs/
+wandb/
+*.pth

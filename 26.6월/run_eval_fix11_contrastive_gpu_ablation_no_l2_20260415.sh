@@ -6,10 +6,16 @@ PROJECT_DIR="${SCRIPT_DIR}"
 
 DATASET_ROOT="${DATASET_ROOT:-/workspace/faap_dataset}"
 DETR_CHECKPOINT="${DETR_CHECKPOINT:-/workspace/detr/detr-r50-e632da11.pth}"
-EXPERIMENT_DIR="${EXPERIMENT_DIR:-${PROJECT_DIR}/faap_outputs/faap_outputs_fix11_contrastive_gpu_ablation_no_l2_20260415}"
+EXPERIMENT_DIR="${EXPERIMENT_DIR:-${PROJECT_DIR}/faap_outputs/faap_outputs_20260617_contrastive_baseline_hyperparameter}"
 CHECKPOINT_DIR="${CHECKPOINT_DIR:-${EXPERIMENT_DIR}/checkpoints}"
 SPLIT="${SPLIT:-test}"
 EPSILON="${EPSILON:-0.05}"
+
+# WANDB=1 로 실행하면 eval 결과를 W&B 대시보드에 epoch축으로 기록
+WANDB_FLAG=""
+if [[ "${WANDB:-0}" == "1" ]]; then
+  WANDB_FLAG="--wandb"
+fi
 
 if [[ ! -d "${CHECKPOINT_DIR}" ]]; then
   echo "Checkpoint directory not found: ${CHECKPOINT_DIR}" >&2
@@ -36,7 +42,8 @@ for CKPT in "${CHECKPOINTS[@]}"; do
     --generator_checkpoint "${CKPT}" \
     --epsilon "${EPSILON}" \
     --split "${SPLIT}" \
-    --results_path "${RESULTS_PATH}"
+    --results_path "${RESULTS_PATH}" \
+    ${WANDB_FLAG}
 done
 
 echo "All evaluations completed."

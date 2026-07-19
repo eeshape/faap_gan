@@ -250,6 +250,10 @@ def parse_args() -> argparse.Namespace:
                         help="Run name (default: output_dir name)")
     parser.add_argument("--wandb_mode", type=str, default="online",
                         choices=["online", "offline", "disabled"])
+    parser.add_argument("--wandb_group", type=str, default="",
+                        help="W&B group (e.g. lambda_sweep / tau_sweep) for sweep filtering")
+    parser.add_argument("--wandb_tags", type=str, default="",
+                        help="Comma-separated W&B tags")
 
     return parser.parse_args()
 
@@ -365,7 +369,12 @@ def main():
             mode=args.wandb_mode,
             config=vars(args),
             dir=str(output_dir),
+            group=args.wandb_group or None,
+            tags=[t for t in (args.wandb_tags or "").split(",") if t],
         )
+        # epoch 단위 지표는 epoch 을 x축으로 고정 → 여러 run 곡선을 깔끔하게 겹쳐 비교.
+        wandb.define_metric("epoch")
+        wandb.define_metric("epoch/*", step_metric="epoch")
 
     if utils.is_main_process():
         dataset_info = inspect_faap_dataset(Path(args.dataset_root))
@@ -455,6 +464,7 @@ def main():
     # Training Loop
     # =========================================================================
 
+    last_epoch_log = None  # 학습 종료 후 wandb summary 스칼라로 사용
     for epoch in range(start_epoch, args.epochs):
         metrics_logger = utils.MetricLogger(delimiter="  ")
         generator.train()
@@ -658,6 +668,8 @@ def main():
                 epoch_log["epoch"] = epoch
                 wandb.log(epoch_log)
 
+            last_epoch_log = log_entry
+
             print(f"\n[Epoch {epoch}] Summary (ABLATION: no L2):")
             print(f"  Contrastive: {log_entry['loss_con']:.4f}  |  L2 Anchor: REMOVED")
             print(f"  Det Female:  {log_entry['loss_det_f']:.4f}  |  Det Male:  {log_entry['loss_det_m']:.4f}")
@@ -703,6 +715,13 @@ def main():
         print("  3. matched_score_gap: 남성 score가 하락하는지 확인")
 
     if use_wandb:
+        # run당 단일 요약 스칼라(마지막 epoch proxy 지표) → 스윕 Scatter 보조 축.
+        # 최종 공정성 지표(AP gap)는 eval_faap.py 가 같은 project 에 별도 기록.
+        if last_epoch_log is not None:
+            wandb.run.summary["final/matched_score_gap"] = last_epoch_log["matched_score_gap"]
+            wandb.run.summary["final/delta_linf_m"] = last_epoch_log["delta_linf_m"]
+            wandb.run.summary["final/delta_linf_f"] = last_epoch_log["delta_linf_f"]
+            wandb.run.summary["final/loss_con"] = last_epoch_log["loss_con"]
         wandb.finish()
 
 

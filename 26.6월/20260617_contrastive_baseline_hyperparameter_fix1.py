@@ -199,8 +199,10 @@ def parse_args() -> argparse.Namespace:
 
     # Training
     parser.add_argument("--device", type=str, default="cuda")
-    parser.add_argument("--epochs", type=int, default=15)
-    parser.add_argument("--batch_size", type=int, default=5)
+    parser.add_argument("--epochs", type=int, default=15)       # baseline과 동일 (교란변수 통제: LR/beta 스케줄 기준)
+    parser.add_argument("--stop_epoch", type=int, default=8,    # epoch 8까지만 학습 후 중단 (스케줄은 epochs=15 기준 유지)
+                        help="이 epoch까지만 돌고 조기 종료. 스케줄(LR/beta)은 --epochs 기준 유지하여 baseline과 비교 가능")
+    parser.add_argument("--batch_size", type=int, default=5)    # baseline과 동일 (교란변수 통제)
     parser.add_argument("--num_workers", type=int, default=6)
     parser.add_argument("--lr_g", type=float, default=5e-5)
     parser.add_argument("--seed", type=int, default=42)
@@ -214,7 +216,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--epsilon_min", type=float, default=0.09)
 
     # Loss weights (gamma 제거됨)
-    parser.add_argument("--lambda_con", type=float, default=1.0,
+    parser.add_argument("--lambda_con", type=float, default=2.5,   # fix1: 1.0->2.5 (비교 대상: contrastive 강도 ↑)
                         help="Contrastive loss weight")
     parser.add_argument("--beta", type=float, default=0.5,
                         help="Female detection loss weight (start)")
@@ -224,7 +226,7 @@ def parse_args() -> argparse.Namespace:
                         help="Male detection loss weight (fixed)")
 
     # Contrastive settings
-    parser.add_argument("--temperature", type=float, default=0.1)
+    parser.add_argument("--temperature", type=float, default=0.05)  # fix1: 0.1->0.05 (비교 대상: 분리 sharpness ↑)
     parser.add_argument("--proj_dim", type=int, default=128)
     parser.add_argument("--proj_dropout", type=float, default=0.1)
     parser.add_argument("--score_top_k", type=int, default=10)
@@ -683,6 +685,13 @@ def main():
 
         if args.distributed:
             dist.barrier()
+
+        # 조기 종료: 스케줄은 epochs=15 기준 유지하되 stop_epoch에서 학습만 중단
+        if args.stop_epoch >= 0 and epoch >= args.stop_epoch:
+            if utils.is_main_process():
+                print(f"\n[조기 종료] stop_epoch={args.stop_epoch} 도달 → 학습 중단 "
+                      f"(LR/beta 스케줄은 epochs={args.epochs} 기준)")
+            break
 
     # =========================================================================
     # Training Complete
