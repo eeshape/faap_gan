@@ -1,11 +1,11 @@
 """
-FAAP Training - Anchor 3-Way 비교 (B) L2 ANCHOR: male feature 점별 고정 [2026-07-08]
+FAAP Training - Anchor 3-Way 비교 (A) BASELINE: anchor 없음 [2026-07-08]
 
 =============================================================================
 3-Way 통제 비교 (anchor 항 외 코드·하이퍼파라미터 완전 동일):
-  (A) 20260708_contrastive_baseline.py        : anchor 없음 (통제군)
-  (B) 20260708_contrastive_l2_anchor.py       : + gamma * L_L2_anchor (점별 고정)
-  (C) 20260708_contrastive_centroid_anchor.py : + gamma * L_centroid_anchor (평균 방향 정렬)
+  (A) 260714-260721_contrastive_baseline.py        : anchor 없음 (통제군)
+  (B) 260714-260721_contrastive_l2_anchor.py       : + gamma * L_L2_anchor (점별 고정)
+  (C) 260714-260721_contrastive_centroid_anchor.py : + gamma * L_centroid_anchor (평균 방향 정렬)
 =============================================================================
 
 배경 (20260617 OFAT 스윕 진단):
@@ -29,21 +29,17 @@ FAAP Training - Anchor 3-Way 비교 (B) L2 ANCHOR: male feature 점별 고정 [2
 Total Loss = lambda_con * L_contrastive
            + beta     * L_det_female
            + beta_m   * L_det_male
-           + gamma    * L_L2_anchor
+           (anchor 항 없음 — 통제군)
 
 (1) L_contrastive: Score-Weighted Contrastive Loss (.detach() 없음, 양쪽 gradient)
 (2) L_det_female : 여성 검출 보존 (DETR criterion)
 (3) L_det_male   : 남성 검출 보존 (DETR criterion)
-(4) L_L2_anchor  : F.mse_loss(z_pert_male, z_clean_male)
-    - teacher(z_clean_male)는 no_grad 고정 target — clean forward 로 계산
-    - 개별 male feature 를 점별로 clean 위치에 고정 (가장 강한 제약)
-    - gamma=0.5 기본 (원본 fix11 권장 0.5~1.0)
 """
 
 import argparse
 import json
 from pathlib import Path
-from typing import List, Sequence
+from typing import Sequence
 
 if __package__ is None or __package__ == "":
     import sys
@@ -146,10 +142,7 @@ class ScoreWeightedContrastiveLoss(nn.Module):
         info = {
             "n_f": n_f,
             "n_m": n_m,
-            "score_f_mean": scores_f.detach().mean().item(),
-            "score_m_mean": scores_m.detach().mean().item(),
             "score_gap": (scores_m.detach().mean() - scores_f.detach().mean()).item(),
-            "sim_f2m_mean": sim_f2m.detach().mean().item(),
         }
         return loss, info
 
@@ -207,7 +200,7 @@ def _default_output_dir(script_path: Path) -> str:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        "FAAP 3-way anchor comparison (B) L2 anchor (point-wise male fix)"
+        "FAAP 3-way anchor comparison (A) BASELINE: no anchor"
     )
 
     # Paths
@@ -234,7 +227,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--epsilon_cooldown_epochs", type=int, default=6)
     parser.add_argument("--epsilon_min", type=float, default=0.09)
 
-    # Loss weights (+ gamma: L2 anchor)
+    # Loss weights (anchor 항 없음 — 3-way 통제군)
     parser.add_argument("--lambda_con", type=float, default=2.5,   # 20260617 OFAT 스윕 최적값
                         help="Contrastive loss weight (2.5 = OFAT 스윕에서 AP gap·유틸리티 모두 1위)")
     parser.add_argument("--beta", type=float, default=0.5,
@@ -243,8 +236,6 @@ def parse_args() -> argparse.Namespace:
                         help="Female detection loss weight (end)")
     parser.add_argument("--beta_m", type=float, default=0.5,
                         help="Male detection loss weight (fixed)")
-    parser.add_argument("--gamma", type=float, default=0.5,
-                        help="L2 anchor loss weight (원본 fix11 권장 0.5~1.0)")
 
     # Contrastive settings
     parser.add_argument("--temperature", type=float, default=0.1)
@@ -279,14 +270,6 @@ def parse_args() -> argparse.Namespace:
                         help="Comma-separated W&B tags")
 
     return parser.parse_args()
-
-
-def _split_nested(samples: NestedTensor, targets: Sequence[dict], keep: List[int]):
-    if len(keep) == 0:
-        return None, []
-    tensor = samples.tensors[keep]
-    mask = samples.mask[keep] if samples.mask is not None else None
-    return NestedTensor(tensor, mask), [targets[i] for i in keep]
 
 
 def _apply_generator(generator: nn.Module, samples: NestedTensor) -> NestedTensor:
@@ -405,17 +388,17 @@ def main():
             json.dump(dataset_info, f, indent=2)
 
         print("=" * 70)
-        print("FAAP 3-Way Anchor 비교 (B) L2 ANCHOR: male 점별 고정")
+        print("FAAP 3-Way Anchor 비교 (A) BASELINE: anchor 없음")
         print("=" * 70)
         print("[Loss 구조]")
         print(f"  (1) lambda_con={args.lambda_con} * L_contrastive  (Score-Weighted, no .detach())")
         print(f"  (2) beta={args.beta}->{args.beta_final} * L_det_female")
         print(f"  (3) beta_m={args.beta_m} * L_det_male")
-        print(f"  (4) gamma={args.gamma} * L_L2_anchor  (male feature 점별 MSE 고정)")
+        print(f"  (X) anchor 항 없음 — 통제군")
         print("-" * 70)
         print("[실험 목적]")
-        print("  contrastive가 female→male로 당길 때 male feature를 점별 고정")
-        print("  baseline(no anchor) 대비 AP gap 개선 여부 검증")
+        print("  L2/Centroid anchor 효과 검증의 통제군 (no anchor)")
+        print("  가설: anchor 없으면 male 드리프트로 AP gap 개선 정체")
         print("-" * 70)
         print(f"  Temperature: {args.temperature}")
         print(f"  Epsilon: {args.epsilon} -> {args.epsilon_final} -> {args.epsilon_min}")
@@ -506,7 +489,7 @@ def main():
         )
         current_beta = _scheduled_beta(epoch, args.epochs, args.beta, args.beta_final)
         _set_generator_epsilon(generator, current_eps)
-        current_lr = scheduler.get_last_lr()[0] if hasattr(scheduler, '_last_lr') else args.lr_g
+        current_lr = scheduler.get_last_lr()[0]
 
         for samples, targets, genders in metrics_logger.log_every(
             train_loader, args.log_every, f"Epoch {epoch}"
@@ -527,11 +510,6 @@ def main():
             opt_g.zero_grad()
 
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-
-                # ----- Clean features (teacher: 고정 target, no_grad) -----
-                with torch.no_grad():
-                    _, feat_clean = detr.forward_with_features(samples)
-                    z_clean = proj_head(feat_clean)  # (B, D), L2-normalized
 
                 # ----- Perturbed features -----
                 perturbed = _apply_generator(generator, samples)
@@ -573,22 +551,12 @@ def main():
                 loss_det_m, _ = detr.detection_loss(outputs_m, targets_m)
 
                 # =============================================================
-                # (4) L2 Anchoring Loss (male feature 점별 고정)
-                # =============================================================
-                # z_pert_male: gradient O (generator 통해 학습)
-                # z_clean_male: gradient X (no_grad teacher)
-                z_pert_male = z_pert[male_idx]
-                z_clean_male = z_clean[male_idx]
-                loss_anchor = F.mse_loss(z_pert_male, z_clean_male)
-
-                # =============================================================
-                # Total Loss
+                # Total Loss (anchor 없음 — 3-way 통제군)
                 # =============================================================
                 total_g = (
                     args.lambda_con * loss_contrastive
                     + current_beta * loss_det_f
                     + args.beta_m * loss_det_m
-                    + args.gamma * loss_anchor
                 )
 
             # =================================================================
@@ -599,16 +567,9 @@ def main():
                 delta_linf = delta.abs().amax(dim=(1, 2, 3)).mean()
                 delta_l2 = delta.flatten(1).norm(p=2, dim=1).mean()
 
-                if male_idx:
-                    delta_m = delta[male_idx]
-                    delta_linf_m = delta_m.abs().amax(dim=(1, 2, 3)).mean()
-                else:
-                    delta_linf_m = torch.tensor(0.0, device=device)
-                if female_idx:
-                    delta_f = delta[female_idx]
-                    delta_linf_f = delta_f.abs().amax(dim=(1, 2, 3)).mean()
-                else:
-                    delta_linf_f = torch.tensor(0.0, device=device)
+                # female/male 모두 최소 1개 보장됨 (위의 continue 가드)
+                delta_linf_m = delta[male_idx].abs().amax(dim=(1, 2, 3)).mean()
+                delta_linf_f = delta[female_idx].abs().amax(dim=(1, 2, 3)).mean()
 
                 matched_f = _matched_detection_scores(detr, outputs_f, targets_f)
                 matched_m = _matched_detection_scores(detr, outputs_m, targets_m)
@@ -631,7 +592,7 @@ def main():
                 loss_con=loss_contrastive.item(),
                 loss_det_f=loss_det_f.item(),
                 loss_det_m=loss_det_m.item(),
-                loss_anchor=loss_anchor.item(),
+                loss_anchor=0.0,
                 total_g=total_g.item(),
                 eps=current_eps,
                 beta=current_beta,
@@ -652,7 +613,7 @@ def main():
                     "train/loss_con": loss_contrastive.item(),
                     "train/loss_det_f": loss_det_f.item(),
                     "train/loss_det_m": loss_det_m.item(),
-                    "train/loss_anchor": loss_anchor.item(),
+                    "train/loss_anchor": 0.0,
                     "train/total_g": total_g.item(),
                     "train/matched_score_f": mscore_f.item(),
                     "train/matched_score_m": mscore_m.item(),
@@ -681,7 +642,7 @@ def main():
                 "loss_con": metrics_logger.meters["loss_con"].global_avg,
                 "loss_det_f": metrics_logger.meters["loss_det_f"].global_avg,
                 "loss_det_m": metrics_logger.meters["loss_det_m"].global_avg,
-                "loss_anchor": metrics_logger.meters["loss_anchor"].global_avg,
+                "loss_anchor": 0.0,  # baseline: anchor 없음 (3-way 로그 키 정렬용)
                 "total_g": metrics_logger.meters["total_g"].global_avg,
                 "epsilon": current_eps,
                 "beta": current_beta,
@@ -709,8 +670,8 @@ def main():
 
             last_epoch_log = log_entry
 
-            print(f"\n[Epoch {epoch}] Summary (3-way L2 ANCHOR):")
-            print(f"  Contrastive: {log_entry['loss_con']:.4f}  |  L2 Anchor: {log_entry['loss_anchor']:.4f}")
+            print(f"\n[Epoch {epoch}] Summary (3-way BASELINE: no anchor):")
+            print(f"  Contrastive: {log_entry['loss_con']:.4f}  |  Anchor: NONE (baseline)")
             print(f"  Det Female:  {log_entry['loss_det_f']:.4f}  |  Det Male:  {log_entry['loss_det_m']:.4f}")
             print(f"  Total: {log_entry['total_g']:.4f}")
             print(f"  Matched Score (F/M): {mf:.4f} / {mm:.4f}  |  Gap(M-F): {log_entry['matched_score_gap']:.4f}")
@@ -747,18 +708,18 @@ def main():
     # =========================================================================
     if utils.is_main_process():
         print("\n" + "=" * 70)
-        print("3-Way (B) L2 ANCHOR 학습 완료")
+        print("3-Way (A) BASELINE (no anchor) 학습 완료")
         print("=" * 70)
         print(f"Output: {output_dir}")
         print("\n[Loss 구조]")
         print(f"  lambda_con={args.lambda_con} * L_contrastive  (Score-Weighted, no .detach())")
         print(f"  beta={args.beta}->{args.beta_final} * L_det_female")
         print(f"  beta_m={args.beta_m} * L_det_male")
-        print(f"  gamma={args.gamma} * L_L2_anchor  (male 점별 MSE 고정)")
-        print("\n비교 포인트 (vs baseline/centroid):")
-        print("  1. AP Gap: baseline 대비 개선되는가 / centroid 대비 어느 쪽이 나은가")
-        print("  2. matched_score_m: male 성능이 점별 고정으로 더 잘 보존되는가")
-        print("  3. loss_con: 점별 고정이 contrastive 학습을 방해하지 않는가")
+        print(f"  anchor 항 없음 (통제군)")
+        print("\n비교 포인트 (vs L2/Centroid anchor):")
+        print("  1. AP Gap: anchor 있는 변형이 gap을 더 줄이는가")
+        print("  2. matched_score_m / delta_linf_m: male 드리프트가 실제로 일어나는가")
+        print("  3. epoch에 따라 gap이 '지속적으로' 감소하는가 (스윕에선 실패)")
 
     if use_wandb:
         # run당 단일 요약 스칼라(마지막 epoch proxy 지표) → 스윕 Scatter 보조 축.

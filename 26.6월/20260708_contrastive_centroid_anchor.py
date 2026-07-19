@@ -49,6 +49,8 @@ from typing import List, Sequence
 if __package__ is None or __package__ == "":
     import sys
     pkg_dir = Path(__file__).resolve().parent
+    while pkg_dir.name != "faap_gan" and pkg_dir.parent != pkg_dir:
+        pkg_dir = pkg_dir.parent
     parent = pkg_dir.parent
     if str(parent) not in sys.path:
         sys.path.append(str(parent))

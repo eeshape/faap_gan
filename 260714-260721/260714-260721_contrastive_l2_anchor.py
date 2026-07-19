@@ -3,9 +3,9 @@ FAAP Training - Anchor 3-Way 비교 (B) L2 ANCHOR: male feature 점별 고정 [2
 
 =============================================================================
 3-Way 통제 비교 (anchor 항 외 코드·하이퍼파라미터 완전 동일):
-  (A) 20260708_contrastive_baseline.py        : anchor 없음 (통제군)
-  (B) 20260708_contrastive_l2_anchor.py       : + gamma * L_L2_anchor (점별 고정)
-  (C) 20260708_contrastive_centroid_anchor.py : + gamma * L_centroid_anchor (평균 방향 정렬)
+  (A) 260714-260721_contrastive_baseline.py        : anchor 없음 (통제군)
+  (B) 260714-260721_contrastive_l2_anchor.py       : + gamma * L_L2_anchor (점별 고정)
+  (C) 260714-260721_contrastive_centroid_anchor.py : + gamma * L_centroid_anchor (평균 방향 정렬)
 =============================================================================
 
 배경 (20260617 OFAT 스윕 진단):
@@ -43,7 +43,7 @@ Total Loss = lambda_con * L_contrastive
 import argparse
 import json
 from pathlib import Path
-from typing import List, Sequence
+from typing import Sequence
 
 if __package__ is None or __package__ == "":
     import sys
@@ -146,10 +146,7 @@ class ScoreWeightedContrastiveLoss(nn.Module):
         info = {
             "n_f": n_f,
             "n_m": n_m,
-            "score_f_mean": scores_f.detach().mean().item(),
-            "score_m_mean": scores_m.detach().mean().item(),
             "score_gap": (scores_m.detach().mean() - scores_f.detach().mean()).item(),
-            "sim_f2m_mean": sim_f2m.detach().mean().item(),
         }
         return loss, info
 
@@ -279,14 +276,6 @@ def parse_args() -> argparse.Namespace:
                         help="Comma-separated W&B tags")
 
     return parser.parse_args()
-
-
-def _split_nested(samples: NestedTensor, targets: Sequence[dict], keep: List[int]):
-    if len(keep) == 0:
-        return None, []
-    tensor = samples.tensors[keep]
-    mask = samples.mask[keep] if samples.mask is not None else None
-    return NestedTensor(tensor, mask), [targets[i] for i in keep]
 
 
 def _apply_generator(generator: nn.Module, samples: NestedTensor) -> NestedTensor:
@@ -506,7 +495,7 @@ def main():
         )
         current_beta = _scheduled_beta(epoch, args.epochs, args.beta, args.beta_final)
         _set_generator_epsilon(generator, current_eps)
-        current_lr = scheduler.get_last_lr()[0] if hasattr(scheduler, '_last_lr') else args.lr_g
+        current_lr = scheduler.get_last_lr()[0]
 
         for samples, targets, genders in metrics_logger.log_every(
             train_loader, args.log_every, f"Epoch {epoch}"
@@ -599,16 +588,9 @@ def main():
                 delta_linf = delta.abs().amax(dim=(1, 2, 3)).mean()
                 delta_l2 = delta.flatten(1).norm(p=2, dim=1).mean()
 
-                if male_idx:
-                    delta_m = delta[male_idx]
-                    delta_linf_m = delta_m.abs().amax(dim=(1, 2, 3)).mean()
-                else:
-                    delta_linf_m = torch.tensor(0.0, device=device)
-                if female_idx:
-                    delta_f = delta[female_idx]
-                    delta_linf_f = delta_f.abs().amax(dim=(1, 2, 3)).mean()
-                else:
-                    delta_linf_f = torch.tensor(0.0, device=device)
+                # female/male 모두 최소 1개 보장됨 (위의 continue 가드)
+                delta_linf_m = delta[male_idx].abs().amax(dim=(1, 2, 3)).mean()
+                delta_linf_f = delta[female_idx].abs().amax(dim=(1, 2, 3)).mean()
 
                 matched_f = _matched_detection_scores(detr, outputs_f, targets_f)
                 matched_m = _matched_detection_scores(detr, outputs_m, targets_m)
